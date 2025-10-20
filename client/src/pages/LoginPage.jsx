@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext'; 
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
+  const { login } = useAuth(); 
   const navigate = useNavigate();
+  const [error, setError] = useState('');
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -12,14 +14,13 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/login', formData);
-      localStorage.setItem('token', response.data.token);
-      alert('Login successful!');
-      navigate('/');
+      await login(formData.email, formData.password); 
+      navigate('/'); 
     } catch (error) {
       console.error('Login failed:', error);
-      alert('Login failed. Check credentials.');
+      setError('Login failed. Check credentials.');
     }
   };
 
@@ -27,12 +28,28 @@ const LoginPage = () => {
     <div>
       <h2>Login</h2>
       <form onSubmit={handleSubmit}>
-        <input type="email" name="email" placeholder="Email" onChange={handleChange} required />
-        <input type="password" name="password" placeholder="Password" onChange={handleChange} required />
+        <input
+          type="email"
+          name="email"
+          placeholder="Email"
+          onChange={handleChange}
+          required
+        />
+        <input
+          type="password"
+          name="password"
+          placeholder="Password"
+          onChange={handleChange}
+          required
+        />
         <button type="submit">Login</button>
       </form>
-      <p>Don't have an account? <Link to="/signup">Signup here</Link></p>
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+      <p>
+        Don't have an account? <Link to="/signup">Signup here</Link>
+      </p>
     </div>
   );
 };
+
 export default LoginPage;
