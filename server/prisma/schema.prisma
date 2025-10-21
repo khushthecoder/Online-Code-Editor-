@@ -20,4 +20,23 @@ model User {
   password  String   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  rooms     Room[]
+}
+model Room {
+  id        String   @id @default(cuid())
+  roomId    String   @unique 
+  owner     User     @relation(fields: [ownerId], references: [id])
+  ownerId   String
+  code      Code?
+  createdAt DateTime @default(now())
+}
+model Code {
+  id        String   @id @default(cuid())
+  html      String?  @default("")
+  css       String?  @default("")
+  javascript String? @default("")
+  python    String?  @default("")
+  room      Room     @relation(fields: [roomId], references: [id])
+  roomId    String   @unique
+  updatedAt DateTime @updatedAt
 }
