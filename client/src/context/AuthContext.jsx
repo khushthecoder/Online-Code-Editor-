@@ -11,7 +11,7 @@ export const AuthProvider = ({ children }) => {
 
   // API base URL
   const API = axios.create({
-    baseURL: 'http://localhost:5000/api',
+    baseURL: 'http://localhost:5001/api',
   });
 
   useEffect(() => {
