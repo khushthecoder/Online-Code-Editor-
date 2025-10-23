@@ -4,6 +4,7 @@ const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 const prisma = require('./src/prismaClient');
+
 const authRoutes = require('./src/routes/authRoutes');
 const roomRoutes = require('./src/routes/roomRoutes');
 
@@ -30,29 +31,49 @@ async function getAllConnectedClients(roomId, io) {
   return clients.map((client) => {
     return {
       socketId: client.id,
-      username: client.username, 
+      username: client.username,
     };
   });
 }
+
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
 
-  socket.on('join-room', async ({ roomId, username }) => { 
+  socket.on('join-room', async ({ roomId, username }) => {
     socket.username = username;
     socket.join(roomId);
     console.log(`User ${socket.id} (${username}) joined room ${roomId}`);
+
     const clients = await getAllConnectedClients(roomId, io);
-    io.in(roomId).emit('update-user-list', clients); 
-    
-    socket.on('code-change', async (newCode) => {
-      socket.to(roomId).emit('code-update', newCode);
+    io.in(roomId).emit('update-user-list', clients);
+    socket.on('code-change', async ({ language, newCode }) => {
+      socket.to(roomId).emit('code-update', { language, newCode });
       try {
-        await prisma.room.update({
-          where: { roomId: roomId },
-          data: { code: { update: { javascript: newCode } } },
+        const dataToUpdate = {};
+        dataToUpdate[language] = newCode; 
+
+        await prisma.code.update({
+          where: {
+            room: {
+              roomId: roomId,
+            }
+          },
+          data: dataToUpdate, 
         });
+
       } catch (error) {
         console.error('Failed to save code:', error);
+        try {
+            const room = await prisma.room.findUnique({ where: { roomId }, select: { code: { select: { id: true } } } });
+            if (room && room.code) {
+                await prisma.code.update({
+                    where: { id: room.code.id },
+                    data: dataToUpdate
+                });
+            }
+        } catch (dbError) {
+            console.error('DB Save Error (fallback):', dbError);
+        }
       }
     });
     socket.on('disconnecting', async () => {
