@@ -7,6 +7,7 @@ const prisma = require('./src/prismaClient');
 
 const authRoutes = require('./src/routes/authRoutes');
 const roomRoutes = require('./src/routes/roomRoutes');
+const runRoutes = require('./src/routes/runRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -25,15 +26,14 @@ app.use(express.json());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/room', roomRoutes);
+app.use('/api/run', runRoutes);
 
 async function getAllConnectedClients(roomId, io) {
   const clients = await io.in(roomId).fetchSockets();
-  return clients.map((client) => {
-    return {
-      socketId: client.id,
-      username: client.username,
-    };
-  });
+  return clients.map((client) => ({
+    socketId: client.id,
+    username: client.username,
+  }));
 }
 
 io.on('connection', (socket) => {
@@ -41,54 +41,52 @@ io.on('connection', (socket) => {
 
   socket.on('join-room', async ({ roomId, username }) => {
     socket.username = username;
+    socket.roomId = roomId;
     socket.join(roomId);
     console.log(`User ${socket.id} (${username}) joined room ${roomId}`);
 
     const clients = await getAllConnectedClients(roomId, io);
     io.in(roomId).emit('update-user-list', clients);
-    socket.on('code-change', async ({ language, newCode }) => {
-      socket.to(roomId).emit('code-update', { language, newCode });
-      try {
-        const dataToUpdate = {};
-        dataToUpdate[language] = newCode; 
+  });
 
+  socket.on('code-change', async ({ language, newCode }) => {
+    const roomId = socket.roomId;
+    if (!roomId) return;
+
+    socket.to(roomId).emit('code-update', { language, newCode });
+
+    const dataToUpdate = { [language]: newCode };
+    try {
+      const room = await prisma.room.findUnique({
+        where: { roomId },
+        select: { code: { select: { id: true } } },
+      });
+
+      if (room && room.code) {
         await prisma.code.update({
-          where: {
-            room: {
-              roomId: roomId,
-            }
-          },
-          data: dataToUpdate, 
+          where: { id: room.code.id },
+          data: dataToUpdate,
         });
+      }
+    } catch (dbError) {
+      console.error('DB Save Error:', dbError);
+    }
+  });
 
-      } catch (error) {
-        console.error('Failed to save code:', error);
+  socket.on('disconnecting', async () => {
+    console.log(`User disconnected: ${socket.id}`);
+    const roomId = socket.roomId;
+    if (roomId) {
+      socket.leave(roomId);
+      setTimeout(async () => {
         try {
-            const room = await prisma.room.findUnique({ where: { roomId }, select: { code: { select: { id: true } } } });
-            if (room && room.code) {
-                await prisma.code.update({
-                    where: { id: room.code.id },
-                    data: dataToUpdate
-                });
-            }
-        } catch (dbError) {
-            console.error('DB Save Error (fallback):', dbError);
+          const clients = await getAllConnectedClients(roomId, io);
+          io.in(roomId).emit('update-user-list', clients);
+        } catch (e) {
+          console.error('Error broadcasting user list on disconnect', e);
         }
-      }
-    });
-    socket.on('disconnecting', async () => {
-      console.log(`User disconnected: ${socket.id}`);
-      const rooms = Array.from(socket.rooms);
-      const currentRoomId = rooms.find(room => room !== socket.id);
-
-      if (currentRoomId) {
-        socket.leave(currentRoomId);
-        setTimeout(async () => {
-          const clients = await getAllConnectedClients(currentRoomId, io);
-          io.in(currentRoomId).emit('update-user-list', clients);
-        }, 100);
-      }
-    });
+      }, 100);
+    }
   });
 });
 
