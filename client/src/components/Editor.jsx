@@ -1,8 +1,11 @@
+// src/components/Editor.jsx
 import React from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
+import { cpp } from '@codemirror/lang-cpp';
+import { python } from '@codemirror/lang-python';
 import { okaidia } from '@uiw/codemirror-theme-okaidia';
 
 const Editor = ({ language, value, onChange }) => {
@@ -15,6 +18,10 @@ const Editor = ({ language, value, onChange }) => {
         return html();
       case 'css':
         return css();
+      case 'cpp':
+        return cpp();
+      case 'python':
+        return python();
       default:
         return javascript({ jsx: true });
     }
@@ -27,14 +34,10 @@ const Editor = ({ language, value, onChange }) => {
   return (
     <CodeMirror
       value={value}
-      height="22vh" 
+      height="60vh" 
       theme={okaidia}
-      extensions={[getLanguageExtension()]}
+      extensions={[getLanguageExtension()]} 
       onChange={handleChange}
-      options={{ 
-        lint: true,
-        lineNumbers: true,
-      }}
     />
   );
 };

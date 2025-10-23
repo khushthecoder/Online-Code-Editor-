@@ -1,3 +1,4 @@
+// src/pages/EditorPage.jsx
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { socket } from '../socket';
@@ -10,29 +11,30 @@ const EditorPage = () => {
   const { user, token } = useAuth();
   const [clients, setClients] = useState([]);
 
-  const [html, setHtml] = useState('');
-  const [css, setCss] = useState('');
-  const [js, setJs] = useState('');
-  const [srcDoc, setSrcDoc] = useState('');
+  // VS Code Layout State
+  const [language, setLanguage] = useState('python'); // Default Python
+  const [code, setCode] = useState('');
+  const [stdin, setStdin] = useState('');
+  const [output, setOutput] = useState('');
+  const [isRunning, setIsRunning] = useState(false);
+
+  const fetchCode = useCallback(async (lang) => {
+    if (!token || !roomId) return;
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const response = await axios.get(
+        `http://localhost:5001/api/room/${roomId}`,
+        config
+      );
+      setCode(response.data[lang] || `// Welcome to ${lang}`);
+    } catch (error) {
+      console.error('Failed to fetch code:', error);
+    }
+  }, [roomId, token]);
 
   useEffect(() => {
-    const fetchCode = async () => {
-      if (!token || !roomId) return;
-      try {
-        const config = { headers: { Authorization: `Bearer ${token}` } };
-        const response = await axios.get(
-          `http://localhost:5001/api/room/${roomId}`,
-          config
-        );
-        setHtml(response.data.html || '');
-        setCss(response.data.css || '');
-        setJs(response.data.javascript || '');
-      } catch (error) {
-        console.error('Failed to fetch code:', error);
-      }
-    };
-    fetchCode();
-  }, [roomId, token]);
+    fetchCode(language);
+  }, [language, fetchCode]);
 
   useEffect(() => {
     if (!user) return;
@@ -43,19 +45,9 @@ const EditorPage = () => {
       setClients(userList);
     });
 
-    socket.on('code-update', ({ language, newCode }) => {
-      switch (language) {
-        case 'html':
-          setHtml(newCode);
-          break;
-        case 'css':
-          setCss(newCode);
-          break;
-        case 'javascript':
-          setJs(newCode);
-          break;
-        default:
-          break;
+    socket.on('code-update', ({ language: incomingLang, newCode }) => {
+      if (incomingLang === language) {
+        setCode(newCode);
       }
     });
 
@@ -64,41 +56,38 @@ const EditorPage = () => {
       socket.off('update-user-list');
       socket.off('code-update');
     };
-  }, [roomId, user]);
+  }, [roomId, user, language]);
 
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      setSrcDoc(`
-        <html>
-          <head>
-            <style>${css}</style>
-          </head>
-          <body>
-            ${html}
-            <script>${js}</script>
-          </body>
-        </html>
-      `);
-    }, 250);
+  const onCodeChange = useCallback((value) => {
+    setCode(value);
+    socket.emit('code-change', { language: language, newCode: value });
+  }, [language]);
 
-    return () => clearTimeout(timeout);
-  }, [html, css, js]);
+  const handleRunCode = async () => {
+    if (!token) return;
+    setIsRunning(true);
+    setOutput('Running code...');
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const response = await axios.post(
+        'http://localhost:5001/api/run',
+        { language, code, stdin },
+        config
+      );
 
-  const onHtmlChange = useCallback((value) => {
-    setHtml(value);
-    socket.emit('code-change', { language: 'html', newCode: value });
-  }, []);
+      if (response.data.stderr) {
+        setOutput(response.data.stderr);
+      } else {
+        setOutput(response.data.stdout);
+      }
+    } catch (error) {
+      console.error('Run Error:', error.response ? error.response.data : error.message);
+      setOutput('Error running code. Check server console.');
+    }
+    setIsRunning(false);
+  };
 
-  const onCssChange = useCallback((value) => {
-    setCss(value);
-    socket.emit('code-change', { language: 'css', newCode: value });
-  }, []);
-
-  const onJsChange = useCallback((value) => {
-    setJs(value);
-    socket.emit('code-change', { language: 'javascript', newCode: value });
-  }, []);
-
+  // === Sidebar Avatar Component ===
   const ClientAvatar = ({ username }) => {
     const safeUsername = username || 'Guest';
     const avatarLetter = safeUsername[0].toUpperCase();
@@ -113,13 +102,13 @@ const EditorPage = () => {
       </div>
     );
   };
-
-  if (!user) {
-    return <div>Loading...</div>;
-  }
+  
+  if (!user) { return <div>Loading...</div>; }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'row' }}>
+      
+      {/* === YEH POORA SIDEBAR MISSING THA === */}
       <div
         style={{
           width: '20%',
@@ -162,32 +151,52 @@ const EditorPage = () => {
           </button>
         </div>
       </div>
-      
+      {/* ================================== */}
+
+      {/* Main Area (Editor + Console) */}
       <div style={{ width: '80%', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', flexDirection: 'row', height: 'auto' }}>
-          <div style={{ width: '33.3%' }}>
-            <h4 style={{background: '#222', color: 'white', margin: 0, padding: '5px'}}>HTML</h4>
-            <Editor language="html" value={html} onChange={onHtmlChange} />
-          </div>
-          <div style={{ width: '33.3%' }}>
-            <h4 style={{background: '#222', color: 'white', margin: 0, padding: '5px'}}>CSS</h4>
-            <Editor language="css" value={css} onChange={onCssChange} />
-          </div>
-          <div style={{ width: '33.3%' }}>
-            <h4 style={{background: '#222', color: 'white', margin: 0, padding: '5px'}}>JavaScript</h4>
-            <Editor language="javascript" value={js} onChange={onJsChange} />
-          </div>
-        </div>
         
-        <div style={{ flex: 1, backgroundColor: 'white', height: '40vh' }}>
-          <iframe
-            srcDoc={srcDoc}
-            title="output"
-            sandbox="allow-scripts"
-            frameBorder="0"
-            width="100%"
-            height="100%"
-          />
+        {/* Top Bar: Language Dropdown + Run Button */}
+        <div style={{ padding: '10px', backgroundColor: '#222', display: 'flex', justifyContent: 'space-between' }}>
+          <select 
+            value={language} 
+            onChange={(e) => setLanguage(e.target.value)}
+            style={{ padding: '5px' }}
+          >
+            <option value="javascript">JavaScript</option>
+            <option value="python">Python</option>
+            <option value="cpp">C++</option>
+            <option value="html">HTML</option>
+            <option value="css">CSS</option>
+          </select>
+          <button 
+            onClick={handleRunCode} 
+            disabled={isRunning}
+            style={{ padding: '5px 10px', backgroundColor: isRunning ? '#555' : 'green', color: 'white', border: 'none' }}
+          >
+            {isRunning ? 'Running...' : 'Run'}
+          </button>
+        </div>
+
+        {/* Editor */}
+        <Editor language={language} value={code} onChange={onCodeChange} />
+        
+        {/* Console Area (Input + Output) */}
+        <div style={{ display: 'flex', flexDirection: 'row', height: '30vh', backgroundColor: '#1e1e1e', color: 'white' }}>
+          <div style={{ width: '50%', padding: '10px' }}>
+            <h4 style={{ margin: 0 }}>Input (stdin)</h4>
+            <textarea
+              value={stdin}
+              onChange={(e) => setStdin(e.target.value)}
+              style={{ width: '100%', height: '80%', backgroundColor: '#252526', color: 'white', border: '1px solid #555' }}
+            />
+          </div>
+          <div style={{ width: '50%', padding: '10px' }}>
+            <h4 style={{ margin: 0 }}>Output</h4>
+            <pre style={{ width: '100%', height: '80%', backgroundColor: '#252526', color: 'white', border: '1px solid #555', overflowY: 'auto' }}>
+              {output}
+            </pre>
+          </div>
         </div>
       </div>
     </div>
