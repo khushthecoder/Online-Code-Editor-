@@ -1,4 +1,3 @@
-// src/context/AuthContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import axios from 'axios';
 
@@ -9,40 +8,46 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true); 
 
-  // API base URL
   const API = axios.create({
-    baseURL: 'http://localhost:5001/api',
+    baseURL: 'http://localhost:5001/api', 
   });
-
   useEffect(() => {
-    if (token) {
-      localStorage.setItem('token', token);
-      API.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      
-      setUser({ tempUser: true }); 
-      setLoading(false);
-    } else {
-      localStorage.removeItem('token');
-      delete API.defaults.headers.common['Authorization'];
-      setUser(null);
-      setLoading(false);
-    }
+    const loadUser = async () => {
+      if (token) {
+        localStorage.setItem('token', token);
+        API.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+        try {
+          const response = await API.get('/auth/me'); 
+          setUser(response.data); 
+        } catch (error) {
+          console.error("Failed to fetch user", error);
+          setToken(null); 
+          setUser(null);
+        }
+      } else {
+        localStorage.removeItem('token');
+        delete API.defaults.headers.common['Authorization'];
+        setUser(null);
+      }
+      setLoading(false); 
+    };
+    loadUser();
   }, [token]);
 
-  // Login function
   const login = async (email, password) => {
     const response = await API.post('/auth/login', { email, password });
-    setToken(response.data.token);
-    setUser(response.data.user);
+    setToken(response.data.token); 
+    setUser(response.data.user); 
   };
 
-  // Logout function
   const logout = () => {
     setToken(null);
+    setUser(null);
   };
 
   if (loading) {
-    return <div>Loading...</div>; 
+    return <div>Loading Application...</div>;
   }
 
   return (
@@ -51,7 +56,6 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
 
 export const useAuth = () => {
   return useContext(AuthContext);
