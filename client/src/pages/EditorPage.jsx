@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { socket } from '../socket';
 import Editor from '../components/Editor';
+import Chat from '../components/Chat';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 
@@ -10,13 +11,12 @@ const EditorPage = () => {
   const { roomId } = useParams();
   const { user, token } = useAuth();
   const [clients, setClients] = useState([]);
-
-  // VS Code Layout State
-  const [language, setLanguage] = useState('python'); // Default Python
+  const [language, setLanguage] = useState('python');
   const [code, setCode] = useState('');
   const [stdin, setStdin] = useState('');
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
+  const [messages, setMessages] = useState([]);
 
   const fetchCode = useCallback(async (lang) => {
     if (!token || !roomId) return;
@@ -41,27 +41,41 @@ const EditorPage = () => {
     socket.connect();
     socket.emit('join-room', { roomId, username: user?.username || 'Guest' });
 
-    socket.on('update-user-list', (userList) => {
-      setClients(userList);
-    });
+    const handleUserList = (userList) => setClients(userList);
+    socket.on('update-user-list', handleUserList);
 
-    socket.on('code-update', ({ language: incomingLang, newCode }) => {
-      if (incomingLang === language) {
-        setCode(newCode);
-      }
-    });
+    const handleNewMessage = (message) => {
+      setMessages((prevMessages) => [...prevMessages, message]);
+    };
+    socket.on('new-message', handleNewMessage);
 
     return () => {
       socket.disconnect();
-      socket.off('update-user-list');
-      socket.off('code-update');
+      socket.off('update-user-list', handleUserList);
+      socket.off('new-message', handleNewMessage);
     };
-  }, [roomId, user, language]);
+  }, [roomId, user]);
+
+  useEffect(() => {
+    const handleCodeUpdate = ({ language: incomingLang, newCode }) => {
+      if (incomingLang === language) {
+        setCode(newCode);
+      }
+    };
+    socket.on('code-update', handleCodeUpdate);
+    return () => {
+      socket.off('code-update', handleCodeUpdate);
+    };
+  }, [language]);
 
   const onCodeChange = useCallback((value) => {
     setCode(value);
     socket.emit('code-change', { language: language, newCode: value });
   }, [language]);
+
+  const handleSendMessage = (message) => {
+    socket.emit('send-message', { message });
+  };
 
   const handleRunCode = async () => {
     if (!token) return;
@@ -74,7 +88,6 @@ const EditorPage = () => {
         { language, code, stdin },
         config
       );
-
       if (response.data.stderr) {
         setOutput(response.data.stderr);
       } else {
@@ -87,13 +100,23 @@ const EditorPage = () => {
     setIsRunning(false);
   };
 
-  // === Sidebar Avatar Component ===
   const ClientAvatar = ({ username }) => {
     const safeUsername = username || 'Guest';
     const avatarLetter = safeUsername[0].toUpperCase();
     return (
       <div style={{ marginRight: '10px' }} title={safeUsername}>
-        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#5A5A5A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+        <div
+          style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '50%',
+            backgroundColor: '#5A5A5A',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 'bold',
+          }}
+        >
           {avatarLetter}
         </div>
         <span style={{ fontSize: '12px', wordBreak: 'break-all' }}>
@@ -102,13 +125,13 @@ const EditorPage = () => {
       </div>
     );
   };
-  
-  if (!user) { return <div>Loading...</div>; }
+
+  if (!user) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'row' }}>
-      
-      {/* === YEH POORA SIDEBAR MISSING THA === */}
       <div
         style={{
           width: '20%',
@@ -135,31 +158,38 @@ const EditorPage = () => {
           ))}
         </div>
         <hr style={{ width: '100%', borderColor: '#444' }} />
-        
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <h4 style={{ margin: '5px 0' }}>Chat Room</h4>
+          <Chat messages={messages} onSendMessage={handleSendMessage} />
+        </div>
+        <hr style={{ width: '100%', borderColor: '#444' }} />
         <div style={{ marginTop: 'auto' }}>
-          <p 
-            style={{ cursor: 'help', overflowWrap: 'break-word' }} 
+          <p
+            style={{ cursor: 'help', overflowWrap: 'break-word', margin: '10px 0' }}
             title={roomId}
           >
             Room ID: {roomId.substring(0, 8)}...
           </p>
-          <button 
+          <button
             onClick={() => navigator.clipboard.writeText(roomId)}
-            style={{width: '100%', padding: '5px', borderRadius: '5px'}}
+            style={{ width: '100%', padding: '5px', borderRadius: '5px' }}
           >
             Copy Room ID
           </button>
         </div>
       </div>
-      {/* ================================== */}
 
-      {/* Main Area (Editor + Console) */}
       <div style={{ width: '80%', display: 'flex', flexDirection: 'column' }}>
-        
-        {/* Top Bar: Language Dropdown + Run Button */}
-        <div style={{ padding: '10px', backgroundColor: '#222', display: 'flex', justifyContent: 'space-between' }}>
-          <select 
-            value={language} 
+        <div
+          style={{
+            padding: '10px',
+            backgroundColor: '#222',
+            display: 'flex',
+            justifyContent: 'space-between',
+          }}
+        >
+          <select
+            value={language}
             onChange={(e) => setLanguage(e.target.value)}
             style={{ padding: '5px' }}
           >
@@ -169,31 +199,72 @@ const EditorPage = () => {
             <option value="html">HTML</option>
             <option value="css">CSS</option>
           </select>
-          <button 
-            onClick={handleRunCode} 
+          <button
+            onClick={handleRunCode}
             disabled={isRunning}
-            style={{ padding: '5px 10px', backgroundColor: isRunning ? '#555' : 'green', color: 'white', border: 'none' }}
+            style={{
+              padding: '5px 10px',
+              backgroundColor: isRunning ? '#555' : 'green',
+              color: 'white',
+              border: 'none',
+            }}
           >
             {isRunning ? 'Running...' : 'Run'}
           </button>
         </div>
 
-        {/* Editor */}
         <Editor language={language} value={code} onChange={onCodeChange} />
-        
-        {/* Console Area (Input + Output) */}
-        <div style={{ display: 'flex', flexDirection: 'row', height: '30vh', backgroundColor: '#1e1e1e', color: 'white' }}>
-          <div style={{ width: '50%', padding: '10px' }}>
-            <h4 style={{ margin: 0 }}>Input (stdin)</h4>
+
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            height: '30vh',
+            backgroundColor: '#1e1e1e',
+            color: 'white',
+          }}
+        >
+          <div
+            style={{
+              width: '50%',
+              padding: '10px',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <h4 style={{ margin: 0, marginBottom: '5px' }}>Input (stdin)</h4>
             <textarea
               value={stdin}
               onChange={(e) => setStdin(e.target.value)}
-              style={{ width: '100%', height: '80%', backgroundColor: '#252526', color: 'white', border: '1px solid #555' }}
+              style={{
+                flex: 1,
+                backgroundColor: '#252526',
+                color: 'white',
+                border: '1px solid #555',
+                resize: 'none',
+              }}
             />
           </div>
-          <div style={{ width: '50%', padding: '10px' }}>
-            <h4 style={{ margin: 0 }}>Output</h4>
-            <pre style={{ width: '100%', height: '80%', backgroundColor: '#252526', color: 'white', border: '1px solid #555', overflowY: 'auto' }}>
+          <div
+            style={{
+              width: '50%',
+              padding: '10px',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <h4 style={{ margin: 0, marginBottom: '5px' }}>Output</h4>
+            <pre
+              style={{
+                flex: 1,
+                backgroundColor: '#252526',
+                color: 'white',
+                border: '1px solid #555',
+                overflowY: 'auto',
+                margin: 0,
+                padding: '5px',
+              }}
+            >
               {output}
             </pre>
           </div>
