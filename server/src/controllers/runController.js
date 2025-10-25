@@ -1,47 +1,86 @@
-const axios = require('axios');
-const language_ids = {
-  'javascript': 93, 
-  'python': 71,
-  'cpp': 54, 
-  'html': 0, 
-  'css': 0,
-  'java': 91
-};
+const axios = require("axios");
+const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute";
 
 const runCode = async (req, res) => {
   const { language, code, stdin } = req.body;
-  const languageId = language_ids[language];
-  if (!languageId) {
-    return res.status(400).json({ error: 'Unsupported language' });
+  let apiLanguage = language;
+  let version = "*";
+
+  switch (language.toLowerCase()) {
+    case "python":
+      apiLanguage = "python";
+      version = "3.10.0";
+      break;
+    case "javascript":
+      apiLanguage = "javascript";
+      version = "18.15.0";
+      break;
+    case "java":
+      apiLanguage = "java";
+      version = "15.0.2";
+      break;
+    case "c++":
+      apiLanguage = "c++";
+      version = "10.2.0";
+      break;
+    case "html":
+      return res.json({
+        ran: false,
+        output: "HTML cannot be executed on the server like this.",
+      });
+    case "css":
+      return res.json({
+        ran: false,
+        output: "CSS cannot be executed on the server.",
+      });
   }
 
-  const options = {
-    method: 'POST',
-    url: `https://${process.env.RAPIDAPI_HOST}/submissions`,
-    params: {
-      base64_encoded: 'false',
-      wait: 'true', 
-    },
-    headers: {
-      'content-type': 'application/json',
-      'Content-Type': 'application/json',
-      'X-RapidAPI-Host': process.env.RAPIDAPI_HOST,
-      'X-RapidAPI-Key': process.env.RAPIDAPI_KEY,
-    },
-    data: {
-      language_id: languageId,
-      source_code: code,
-      stdin: stdin || '', 
-    },
-  };
+  if (!apiLanguage || !code) {
+    return res.status(400).json({ message: "Language and code are required" });
+  }
 
   try {
-    const response = await axios.request(options);
-    res.status(200).json(response.data);
+    console.log(`Executing ${apiLanguage} code via Piston API...`);
+    const response = await axios.post(PISTON_API_URL, {
+      language: apiLanguage,
+      version: version,
+      files: [
+        {
+          content: code,
+        },
+      ],
+      stdin: stdin || "",
+      args: [],
+      run_timeout: 10000,
+      compile_timeout: 10000,
+    });
+
+    console.log("Piston API Response:", response.data);
+    const result = response.data.run || response.data.compile;
+
+    if (!result) {
+      throw new Error(response.data.message || "Unknown Piston API error");
+    }
+    res.json({
+      ran: result.signal !== "SIGKILL" && result.signal !== "SIGSEGV",
+      output: result.stdout || "",
+      error: result.stderr || "",
+    });
   } catch (error) {
-    console.error(error.response ? error.response.data : error.message);
-    res.status(500).json({ error: 'Error running code' });
+    console.error(
+      "[runCode] Error executing code via Piston:",
+      error.response ? error.response.data : error.message,
+    );
+    res.status(500).json({
+      message: "Error executing code",
+      error:
+        error.response?.data?.message ||
+        error.message ||
+        "Unknown server error",
+    });
   }
 };
 
-module.exports = { runCode };
+module.exports = {
+  runCode,
+};

@@ -1,0 +1,186 @@
+.editorPageWrapper {
+  display: flex;
+  flex-direction: row;
+}
+
+.sidebar {
+  width: 20%;
+  padding: 10px;
+  border-right: 1px solid var(--border-primary);
+  height: 100vh;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar h3,
+.sidebar h4 {
+  margin: 5px 0;
+}
+
+.userList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.avatar {
+  margin-right: 10px;
+  text-align: center;
+}
+
+.avatarIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--border-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+.avatarUsername {
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.sidebar hr {
+  width: 100%;
+  border-color: var(--border-primary);
+}
+
+.chatContainer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.roomInfo {
+  margin-top: auto;
+}
+
+.roomIdContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.roomIdText {
+  cursor: help;
+  overflow-wrap: break-word;
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.copyBtn {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  width: 40px;
+  height: 40px;
+  text-align: center;
+  padding: 0;
+  line-height: 40px;
+}
+
+.copyBtn:hover {
+  background-color: var(--bg-tertiary);
+  border-color: var(--text-secondary);
+}
+
+.roomActions {
+  display: flex;
+  width: 100%;
+}
+
+.mainArea {
+  width: 80%;
+  display: flex;
+  flex-direction: column;
+}
+
+.topBar {
+  padding: 10px;
+  background-color: var(--bg-tertiary);
+  display: flex;
+  justify-content: space-between;
+}
+
+.topBar select {
+  padding: 5px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+}
+
+.runBtn {
+  padding: 0.9rem 1.25rem;
+  background: var(--accent-primary);
+  color: var(--accent-primary-text);
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(48, 209, 88, 0.12);
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+  align-self: center;
+}
+
+.runBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(48, 209, 88, 0.22);
+}
+
+.runBtn:disabled {
+  background-color: var(--text-muted);
+  color: #fff;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.consoleArea {
+  display: flex;
+  flex-direction: row;
+  height: 30vh;
+  background-color: var(--bg-console);
+  color: var(--text-primary);
+}
+
+.consoleBox {
+  width: 50%;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.consoleBox h4 {
+  margin: 0;
+  margin-bottom: 5px;
+}
+
+.consoleBox textarea,
+.consoleBox pre {
+  flex: 1;
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  resize: none;
+  overflow-y: auto;
+  margin: 0;
+  padding: 5px;
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+}

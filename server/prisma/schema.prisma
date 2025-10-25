@@ -14,13 +14,14 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  username  String   @unique
-  password  String   
+  id        String    @id @default(uuid())
+  username  String    @unique
+  email     String    @unique
+  password  String?   
+  googleId  String?   
+  rooms     Room[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  rooms     Room[]
 }
 model Room {
   id        String   @id @default(cuid())

@@ -1,41 +1,47 @@
-import React from 'react';
-import CodeMirror from '@uiw/react-codemirror';
-import { javascript } from '@codemirror/lang-javascript';
-import { html } from '@codemirror/lang-html';
-import { css } from '@codemirror/lang-css';
-import { cpp } from '@codemirror/lang-cpp';
-import { python } from '@codemirror/lang-python';
-import { okaidia } from '@uiw/codemirror-theme-okaidia';
+import React from "react";
+import CodeMirror from "@uiw/react-codemirror";
+import { javascript } from "@codemirror/lang-javascript";
+import { html } from "@codemirror/lang-html";
+import { css } from "@codemirror/lang-css";
+import { cpp } from "@codemirror/lang-cpp";
+import { python } from "@codemirror/lang-python";
+import { okaidia } from "@uiw/codemirror-theme-okaidia";
+import { useTheme } from "../context/ThemeContext";
 
 const Editor = ({ language, value, onChange }) => {
-  
+  const themeContext = useTheme();
+  const themeName = themeContext?.theme || "dark";
+
   const getLanguageExtension = () => {
     switch (language) {
-      case 'javascript':
+      case "javascript":
         return javascript({ jsx: true });
-      case 'html':
+      case "html":
         return html();
-      case 'css':
+      case "css":
         return css();
-      case 'cpp':
+      case "cpp":
         return cpp();
-      case 'python':
+      case "python":
         return python();
       default:
         return javascript({ jsx: true });
     }
   };
 
-  const handleChange = React.useCallback((val, viewUpdate) => {
-    onChange(val);
-  }, [onChange]);
+  const handleChange = React.useCallback(
+    (val, viewUpdate) => {
+      onChange(val);
+    },
+    [onChange],
+  );
 
   return (
     <CodeMirror
       value={value}
-      height="60vh" 
-      theme={okaidia}
-      extensions={[getLanguageExtension()]} 
+      height="60vh"
+      theme={themeName === "dark" ? okaidia : "light"}
+      extensions={[getLanguageExtension()]}
       onChange={handleChange}
     />
   );

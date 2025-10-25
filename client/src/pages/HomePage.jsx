@@ -1,55 +1,74 @@
-import React, { useState } from 'react'; 
-import { useAuth } from '../context/AuthContext'; 
-import { useNavigate } from 'react-router-dom'; 
-import axios from 'axios';
+import React, { useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import { v4 as uuidV4 } from "uuid";
+import toast from "react-hot-toast";
+import "./HomePage.css";
 
 const HomePage = () => {
-  const { logout, token } = useAuth();
-  const [roomId, setRoomId] = useState('');
+  const { token, logout } = useAuth();
   const navigate = useNavigate();
+  const [roomId, setRoomId] = useState("");
 
-  const handleCreateRoom = async () => {
-    try {
-      const config = {
-        headers: { Authorization: `Bearer ${token}` },
-      };
-      const response = await axios.post('http://localhost:5001/api/room/create', {}, config);
-      const newRoomId = response.data.roomId;
-      navigate(`/room/${newRoomId}`);
-    } catch (error) {
-      console.error('Error creating room:', error);
-      alert('Failed to create room.');
+  const handleJoin = (e) => {
+    e.preventDefault();
+    if (!roomId.trim()) {
+      toast.error("Please enter a Room ID");
+      return;
     }
+    navigate(`/editor/${roomId}`);
   };
 
-  const handleJoinRoom = () => {
-    if (roomId) {
-      navigate(`/room/${roomId}`);
-    } else {
-      alert('Please enter a Room ID');
+  const handleCreate = async () => {
+    try {
+      const newRoomId = uuidV4();
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.post(
+        "http://localhost:5001/api/room/create",
+        { roomId: newRoomId },
+        config,
+      );
+      toast.success("New room created!");
+      navigate(`/editor/${newRoomId}`);
+    } catch (error) {
+      console.error("Error creating room", error);
+      toast.error("Failed to create room. Please try again.");
     }
   };
 
   return (
-    <div>
-      <h2>Welcome to the Code Editor</h2>
-      <button onClick={logout}>Logout</button>
-      <hr style={{ margin: '20px 0' }} />
-      <div>
-        <h3>Join a Room</h3>
-        <input
-          type="text"
-          placeholder="Enter Room ID"
-          value={roomId}
-          onChange={(e) => setRoomId(e.target.value)}
-        />
-        <button onClick={handleJoinRoom}>Join</button>
+    <div className="homePageWrapper">
+      <h1 className="headerTitle">
+        Compile<span>X</span>
+      </h1>
+
+      <div className="formWrapper">
+        <h2>Join a Room</h2>
+        <form onSubmit={handleJoin} className="inputBox">
+          <input
+            type="text"
+            value={roomId}
+            onChange={(e) => setRoomId(e.target.value)}
+            placeholder="Enter Room ID"
+          />
+          <button type="submit" className="btn joinBtn">
+            Join
+          </button>
+        </form>
       </div>
-      <div style={{ marginTop: '20px' }}>
-        <h3>Create a New Room</h3>
-        <button onClick={handleCreateRoom}>Create Room</button>
+
+      <button onClick={handleCreate} className="btn createBtn">
+        Create a New Room
+      </button>
+
+      <div className="logoutBox">
+        <button className="btn logoutBtn" onClick={logout}>
+          Logout
+        </button>
       </div>
     </div>
   );
 };
+
 export default HomePage;

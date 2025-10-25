@@ -1,7 +1,8 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { createRoom, getRoom } = require('../controllers/roomController'); 
-const { authMiddleware } = require('../middleware/authMiddleware');
-router.post('/create', authMiddleware, createRoom);
-router.get('/:roomId', authMiddleware, getRoom);
+const roomController = require("../controllers/roomController");
+const authMiddleware = require("../middleware/authMiddleware");
+router.post("/create", authMiddleware, roomController.createRoom);
+router.get("/:roomId", authMiddleware, roomController.getRoom);
+
 module.exports = router;

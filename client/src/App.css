@@ -1,0 +1,42 @@
+:root {
+  --bg-primary: #141414;
+  --bg-secondary: #212121;
+  --bg-tertiary: #333333;
+
+  --bg-input-dark: #333333;
+  --bg-input-light: #ffffff;
+  --text-input-light: #333333;
+
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --text-muted: #888888;
+
+  --border-primary: #3d3d3d;
+  --border-secondary: #cccccc;
+
+  --accent-primary: #30d158;
+  --accent-primary-text: #000000;
+
+  --font-main: "Arial", sans-serif;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-main);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}

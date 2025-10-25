@@ -1,53 +1,81 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; 
+import React, { useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { Link } from "react-router-dom";
+import axios from "axios";
+import toast from "react-hot-toast";
+import "./AuthPage.css";
+import { GoogleIcon } from "../components/Icons";
 
 const LoginPage = () => {
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const { login } = useAuth(); 
-  const navigate = useNavigate();
-  const [error, setError] = useState('');
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const { login } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     try {
-      await login(formData.email, formData.password); 
-      navigate('/'); 
+      const response = await axios.post(
+        "http://localhost:5001/api/auth/login",
+        { email, password },
+      );
+      login(response.data.token, response.data.user);
+      toast.success("Login successful!");
     } catch (error) {
-      console.error('Login failed:', error);
-      setError('Login failed. Check credentials.');
+      console.error("Login failed", error);
+      toast.error(error.response?.data?.message || "Login failed");
     }
   };
 
+  const handleGoogleLogin = () => {
+    window.location.href = "http://localhost:5001/api/auth/google";
+  };
+
   return (
-    <div>
-      <h2>Login</h2>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          name="email"
-          placeholder="Email"
-          onChange={handleChange}
-          required
-        />
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          onChange={handleChange}
-          required
-        />
-        <button type="submit">Login</button>
-      </form>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      <p>
-        Don't have an account? <Link to="/signup">Signup here</Link>
-      </p>
+    <div className="authPageWrapper">
+      <h1 className="authPageTitle">
+        Compile<span>X</span>
+      </h1>
+
+      <div className="authContainer">
+        <div className="animationContainer">
+          <div className="ring ring1"></div>
+          <div className="ring ring2"></div>
+          <div className="ring ring3"></div>
+          <div className="core"></div>
+        </div>
+        <div className="formWrapper">
+          <form onSubmit={handleSubmit} className="inputBox">
+            <h2>Login to CompileX</h2>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              required
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              required
+            />
+            <button type="submit" className="btn submitBtn">
+              Login
+            </button>
+          </form>
+          <div className="orDivider">
+            <span className="orText">OR</span>
+          </div>
+          <button onClick={handleGoogleLogin} className="btn googleBtn">
+            <GoogleIcon />
+            Sign in with Google
+          </button>
+          <div className="footerLink">
+            Don't have an account? <Link to="/signup">Sign Up</Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

@@ -1,90 +1,106 @@
-const prisma = require('../prismaClient');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const prisma = require("../prismaClient");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 const register = async (req, res) => {
-    const { username, email, password } = req.body;
+  const { username, email, password } = req.body;
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await prisma.user.create({
+      data: {
+        username,
+        email,
+        password: hashedPassword,
+      },
+    });
 
-    if (!username || !email || !password) {
-        return res.status(400).json({ message: 'All fields are required' });
+    const token = jwt.sign(
+      { userId: user.id, username: user.username },
+      process.env.JWT_SECRET,
+      { expiresIn: "3d" },
+    );
+
+    const userDetails = {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+    };
+
+    res.status(201).json({ user: userDetails, token });
+  } catch (error) {
+    console.error("[register] Registration Error:", error);
+    if (error.code === "P2002") {
+      return res
+        .status(400)
+        .json({ message: "Username or email already exists" });
     }
-
-    try {
-        const existingUser = await prisma.user.findFirst({
-            where: { OR: [{ email }, { username }] },
-        });
-        if (existingUser) {
-            return res.status(400).json({ message: 'Email or username already taken' });
-        }
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = await prisma.user.create({
-            data: {
-                username,
-                email,
-                password: hashedPassword,
-            },
-        });
-
-        res.status(201).json({ message: 'User created successfully', userId: newUser.id });
-
-    } catch (error) {
-        console.error('Registration Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
-    }
+    res.status(500).json({ message: "Server error during registration" });
+  }
 };
 
 const login = async (req, res) => {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-        return res.status(400).json({ message: 'Email and password are required' });
+  const { email, password } = req.body;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+    if (!user) {
+      return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    try {
-        const user = await prisma.user.findUnique({
-            where: { email },
-        });
-
-        if (!user) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
-
-        const isMatch = await bcrypt.compare(password, user.password);
-
-        if (!isMatch) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
-
-        const token = jwt.sign(
-            { userId: user.id, username: user.username },
-            process.env.JWT_SECRET,
-            { expiresIn: '3d' } 
-        );
-
-        res.status(200).json({ 
-            message: 'Login successful', 
-            token,
-            user: {
-                id: user.id,
-                email: user.email,
-                username: user.username
-            }
-        });
-
-    } catch (error) {
-        console.error('Login Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    if (!user.password) {
+      return res
+        .status(400)
+        .json({ message: "Account exists, please log in with Google" });
     }
-};
-const getMe = async (req, res) => {
-  if (!req.user) {
-    return res.status(404).json({ message: 'User not found' });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    const token = jwt.sign(
+      { userId: user.id, username: user.username },
+      process.env.JWT_SECRET,
+      { expiresIn: "3d" },
+    );
+
+    const userDetails = {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+    };
+
+    res.json({ user: userDetails, token });
+  } catch (error) {
+    console.error("[login] Login Error:", error);
+    res.status(500).json({ message: "Server error" });
   }
-  res.status(200).json(req.user);
+};
+
+const getMe = async (req, res) => {
+  try {
+    if (!req.user || !req.user.userId) {
+      return res.status(400).json({ message: "User ID not found in token" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: { id: true, username: true, email: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found in database" });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error("[getMe] Server Error:", error);
+    res.status(500).json({ message: "Server error while fetching user" });
+  }
 };
 
 module.exports = {
   register,
   login,
-  getMe, 
+  getMe,
 };
