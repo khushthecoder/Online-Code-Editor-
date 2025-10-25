@@ -1,38 +1,96 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useNavigate, Link } from "react-router-dom";
+import axios from "axios";
+import toast from "react-hot-toast";
+import "./AuthPage.css";
+import { GoogleIcon } from "../components/Icons";
 
 const SignupPage = () => {
-  const [formData, setFormData] = useState({ username: '', email: '', password: '' });
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const { login } = useAuth();
   const navigate = useNavigate();
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5001/api/auth/register', formData);
-      alert('Registration successful! Please login.');
-      navigate('/login');
+      const response = await axios.post(
+        "http://localhost:5001/api/auth/register",
+        {
+          username,
+          email,
+          password,
+        },
+      );
+      login(response.data.token, response.data.user);
+      toast.success("Account created successfully!");
+      navigate("/");
     } catch (error) {
-      console.error('Registration failed:', error);
-      alert('Registration failed. Please try again.');
+      console.error("Signup failed", error);
+      toast.error(error.response?.data?.message || "Signup failed");
     }
   };
 
+  const handleGoogleLogin = () => {
+    window.location.href = "http://localhost:5001/api/auth/google";
+  };
+
   return (
-    <div>
-      <h2>Signup</h2>
-      <form onSubmit={handleSubmit}>
-        <input type="text" name="username" placeholder="Username" onChange={handleChange} required />
-        <input type="email" name="email" placeholder="Email" onChange={handleChange} required />
-        <input type="password" name="password" placeholder="Password" onChange={handleChange} required />
-        <button type="submit">Signup</button>
-      </form>
-      <p>Already have an account? <Link to="/login">Login here</Link></p>
+    <div className="authPageWrapper">
+      <h1 className="authPageTitle">CompileX</h1>
+      <div className="authContainer">
+        <div className="animationContainer">
+          <div className="ring ring1"></div>
+          <div className="ring ring2"></div>
+          <div className="ring ring3"></div>
+          <div className="core"></div>
+        </div>
+
+        <div className="formWrapper">
+          <form onSubmit={handleSubmit} className="inputBox">
+            <h2>Create a New Account</h2>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Username"
+              required
+            />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              required
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              required
+            />
+            <button type="submit" className="btn submitBtn">
+              Sign Up
+            </button>
+          </form>
+          <div className="orDivider">
+            <span className="orText">OR</span>
+          </div>
+          <button onClick={handleGoogleLogin} className="btn googleBtn">
+            <GoogleIcon />
+            Sign up with Google
+          </button>
+
+          <div className="footerLink">
+            Already have an account? <Link to="/login">Login</Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
+
 export default SignupPage;
