@@ -1,11 +1,10 @@
-// server/index.js
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
-const passport = require("passport"); // <-- 1. YEH ADD HUA HAI
-require("./src/config/passport-setup"); // <-- 2. YEH ADD HUA HAI (Passport config ko run karne ke liye)
+const passport = require("passport"); 
+require("./src/config/passport-setup"); 
 const prisma = require("./src/prismaClient");
 
 const authRoutes = require("./src/routes/authRoutes");
@@ -17,7 +16,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", // React App
+    origin: "http://localhost:5173", 
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -26,7 +25,7 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 5001;
 
 const corsOptions = {
-  origin: "http://localhost:5173", // React App ka address
+  origin: "http://localhost:5173", 
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
@@ -35,12 +34,8 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// --- YEH SECTION ADD HUA HAI ---
-// Passport ko initialize karo (Session ki zaroorat nahi, hum JWT use karenge)
 app.use(passport.initialize());
-// ------------------------------
 
-// Logger
 app.use((req, res, next) => {
   if (req.path.startsWith("/api")) {
     console.log(`[API] ${req.method} ${req.path}`);
@@ -48,18 +43,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check for CORS + connectivity from the client
 app.get("/api/ping", (req, res) => {
   res.status(200).json({ message: "pong" });
 });
 
-// API Routes
-app.use("/api/auth", authRoutes); // Auth routes (Google waale bhi) yahaan hain
+app.use("/api/auth", authRoutes); 
 app.use("/api/room", roomRoutes);
 app.use("/api/run", runRoutes);
 
-// --- Socket.io Logic (Same as before) ---
-// (Aapka socket.io code yahaan poora hai, no changes needed)
 async function getAllConnectedClients(roomId, io) {
   const clients = await io.in(roomId).fetchSockets();
   return clients.map((client) => ({
@@ -139,7 +130,6 @@ io.on("connection", (socket) => {
     }
   });
 });
-// --- End of Socket.io Logic ---
 
 server.listen(PORT, () => {
   console.log(`Server listening on http://localhost:${PORT}`);
