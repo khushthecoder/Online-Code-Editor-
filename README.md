@@ -1,8 +1,8 @@
-# CompileX - Real-Time Collaborative Code Editor 🚀
+# CompileX - Real-Time Collaborative Code Editor 
 
 CompileX is a web-based collaborative code editor that allows multiple users to write, edit, and run code together in real-time. It features user authentication, room creation/joining, and code execution capabilities.
 
-## Features ✨
+## Features 
 
 * **Real-Time Collaboration:** Multiple users can join the same coding room and see edits live, powered by Socket.IO.
 * **Code Execution:** Run code snippets directly in the browser (supports Python, JavaScript, C++, Java via Piston API).
@@ -12,7 +12,7 @@ CompileX is a web-based collaborative code editor that allows multiple users to 
 * **Chat:** Built-in chat functionality for communication within a coding room.
 * **Dark Theme:** Sleek and modern dark user interface.
 
-## Tech Stack 🛠️
+## Tech Stack �️
 
 * **Frontend:** React, Vite, CSS, Axios, Socket.IO Client, React Router DOM
 * **Backend:** Node.js, Express.js
@@ -21,7 +21,7 @@ CompileX is a web-based collaborative code editor that allows multiple users to 
 * **Authentication:** JWT (JSON Web Tokens), Passport.js (for Google OAuth)
 * **Code Execution:** Piston API (via Axios)
 
-## Getting Started 🏁
+## Getting Started 
 
 Follow these instructions to get a copy of the project up and running on your local machine for development and testing purposes.
 
@@ -99,7 +99,7 @@ Follow these instructions to get a copy of the project up and running on your lo
         ```
     * The application should open automatically in your browser at `http://localhost:5173`.
 
-## Usage 🧑‍💻
+## Usage 
 
 1.  **Register/Login:** Create an account using your email and password, or sign in using your Google account.
 2.  **Create a Room:** On the homepage, click "Create a New Room". You'll be redirected to a new editor page with a unique Room ID.
