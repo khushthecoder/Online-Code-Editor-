@@ -57,14 +57,8 @@ Follow these instructions to get a copy of the project up and running on your lo
     * Add the following environment variables (replace placeholder values):
         ```env
         # server/.env
-
-        # For Prisma (Example uses SQLite, adjust if using PostgreSQL/MySQL)
         DATABASE_URL="file:./prisma/dev.db"
-
-        # For JWT Authentication
-        JWT_SECRET="YOUR_SUPER_SECRET_KEY_FOR_JWT" # Choose a strong, random string
-
-        # For Google OAuth 2.0
+        JWT_SECRET="YOUR_SUPER_SECRET_KEY_FOR_JWT" 
         GOOGLE_CLIENT_ID="YOUR_GOOGLE_CLIENT_ID_FROM_CLOUD_CONSOLE"
         GOOGLE_CLIENT_SECRET="YOUR_GOOGLE_CLIENT_SECRET_FROM_CLOUD_CONSOLE"
         ```
