@@ -9,9 +9,11 @@
   ],
   "scripts": {
     "build:client": "npm run build --workspace=client",
-    "build:server": "npm exec --workspace=server -- npx prisma generate",
-    "deploy:db": "npm exec --workspace=server -- npx prisma migrate deploy",
-    "build": "npm run deploy:db && npm run build:server && npm run build:client",
+    "build:server": "npm run build --workspace=server",
+    "deploy:db": "npm run deploy --workspace=server",
+    
+    "build": "npm run build:server && npm run deploy:db && npm run build:client",
+    
     "start": "npm start --workspace=server",
     "dev:client": "npm run dev --workspace=client",
     "dev:server": "npm run dev --workspace=server"
