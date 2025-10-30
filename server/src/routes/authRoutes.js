@@ -4,6 +4,7 @@ const passport = require("passport");
 const jwt = require("jsonwebtoken");
 const authController = require("../controllers/authController");
 const authMiddleware = require("../middleware/authMiddleware");
+const CLIENT_URL = process.env.VITE_CLIENT_URL || "http://localhost:5173";
 router.post("/register", authController.register);
 router.post("/login", authController.login);
 router.get("/me", authMiddleware, authController.getMe);
