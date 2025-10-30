@@ -4,7 +4,7 @@ const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
 const passport = require("passport");
-const path = require('path');
+const path = require('path'); 
 require("./src/config/passport-setup");
 const prisma = require("./src/prismaClient");
 
@@ -61,13 +61,6 @@ app.use("/api/auth", authRoutes);
 app.use("/api/room", roomRoutes);
 app.use("/api/run", runRoutes);
 
-if (IS_PROD) {
-  app.use(express.static(path.join(__dirname, '../client/dist')));
-  app.get('*', (req, res) => {
-    res.sendFile(path.resolve(__dirname, '../client/dist', 'index.html'));
-  });
-}
-
 async function getAllConnectedClients(roomId, io) {
   const clients = await io.in(roomId).fetchSockets();
   return clients.map((client) => ({
@@ -109,13 +102,12 @@ io.on("connection", (socket) => {
       console.error("DB Save Error:", dbError);
     }
   });
-
-
+  
   socket.on("send-message", ({ message }) => {
     const roomId = socket.roomId;
     const username = socket.username;
     if (!roomId || !username) return;
-
+    
     const istTime = new Date().toLocaleTimeString('en-US', {
       timeZone: 'Asia/Kolkata', 
       hour: '2-digit',
