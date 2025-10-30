@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "build": "npx prisma generate --schema=./server/prisma/schema.prisma",
+    "build": "npx prisma generate --schema=./server/prisma/schema.prisma && npx prisma migrate deploy",
     "deploy": "npx prisma migrate deploy"
   },
   "dependencies": {
