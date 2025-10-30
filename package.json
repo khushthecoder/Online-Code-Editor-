@@ -1,24 +1,29 @@
 {
-  "name": "compilex-monorepo",
+  "name": "server",
   "version": "1.0.0",
   "private": true,
-  "description": "CompileX Monorepo Root Controller",
-  "workspaces": [
-    "client",
-    "server"
-  ],
+  "main": "index.js",
   "scripts": {
-    "build:client": "npm run build --workspace=client",
-    "build:server": "npm run build --workspace=server",
-    "deploy:db": "npm exec --workspace=server -- npx prisma migrate deploy",
-    
-    "build": "npm run deploy:db && npm run build:server && npm run build:client",
-    
-    "start": "npm start --workspace=server",
-    
-    "dev:client": "npm run dev --workspace=client",
-    "dev:server": "npm run dev --workspace=server"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "build": "npx prisma generate --schema=./prisma/schema.prisma",
+    "deploy": "npx prisma migrate deploy --schema=./prisma/schema.prisma"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "@prisma/client": "^5.17.0",
+    "prisma": "^5.17.0", 
+    "axios": "^1.7.2",
+    "cookie-session": "^2.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "jsonwebtoken": "^9.0.2",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
 }

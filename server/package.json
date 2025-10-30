@@ -7,11 +7,12 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "build": "prisma generate",
-    "postinstall": "prisma migrate deploy && prisma generate"
+    "build": "npx prisma generate",
+    "deploy": "npx prisma migrate deploy"
   },
   "dependencies": {
     "@prisma/client": "^5.17.0",
+    "prisma": "^5.17.0", 
     "axios": "^1.7.2",
     "cookie-session": "^2.1.0",
     "cors": "^2.8.5",
@@ -24,7 +25,6 @@
     "socket.io": "^4.7.5"
   },
   "devDependencies": {
-    "nodemon": "^3.1.4",
-    "prisma": "^5.17.0"
+    "nodemon": "^3.1.4"
   }
 }
