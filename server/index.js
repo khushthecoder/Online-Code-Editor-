@@ -19,18 +19,17 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 5001;
 
 const allowedOrigins = [
-  'http://localhost:5173',
-  'https://online-code-editor-1-em1j.onrender.com' 
-];
+  'http://localhost:5173', 
+  process.env.VITE_CLIENT_URL 
+].filter(Boolean); 
 
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
     }
-    return callback(null, true);
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -55,11 +54,9 @@ app.use((req, res, next) => {
   }
   next();
 });
-
 app.get("/api/ping", (req, res) => {
   res.status(200).json({ message: "pong" });
 });
-
 app.use("/api/auth", authRoutes);
 app.use("/api/room", roomRoutes);
 app.use("/api/run", runRoutes);
@@ -78,12 +75,9 @@ async function getAllConnectedClients(roomId, io) {
     username: client.username,
   }));
 }
-
 const roomLanguages = {};
-
 io.on("connection", (socket) => {
   console.log(`User connected: ${socket.id}`);
-
   socket.on("join-room", async ({ roomId, username }) => {
     socket.username = username;
     socket.roomId = roomId;
@@ -95,7 +89,6 @@ io.on("connection", (socket) => {
       socket.emit("language-update", roomLanguages[roomId]);
     }
   });
-
   socket.on("code-change", async ({ language, newCode }) => {
     const roomId = socket.roomId;
     if (!roomId) return;
@@ -117,17 +110,23 @@ io.on("connection", (socket) => {
     }
   });
 
+
   socket.on("send-message", ({ message }) => {
     const roomId = socket.roomId;
     const username = socket.username;
     if (!roomId || !username) return;
+
+    const istTime = new Date().toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Kolkata', 
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
     io.in(roomId).emit("new-message", {
       username: username,
       text: message,
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      time: istTime,
     });
   });
 
@@ -137,7 +136,6 @@ io.on("connection", (socket) => {
     roomLanguages[roomId] = language;
     socket.to(roomId).emit("language-update", language);
   });
-
   socket.on("disconnecting", async () => {
     console.log(`User disconnected: ${socket.id}`);
     const roomId = socket.roomId;
