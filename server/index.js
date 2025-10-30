@@ -3,9 +3,9 @@ const express = require("express");
 const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
-const passport = require("passport"); 
-const path = require('path'); 
-require("./src/config/passport-setup"); 
+const passport = require("passport");
+const path = require('path');
+require("./src/config/passport-setup");
 const prisma = require("./src/prismaClient");
 
 const authRoutes = require("./src/routes/authRoutes");
@@ -16,22 +16,34 @@ const app = express();
 const server = http.createServer(app);
 
 const IS_PROD = process.env.NODE_ENV === 'production';
-const CLIENT_URL = IS_PROD ? process.env.VITE_CLIENT_URL : 'http://localhost:5173';
 const PORT = process.env.PORT || 5001;
 
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://online-code-editor-1-em1j.onrender.com' 
+];
+
 const corsOptions = {
-  origin: CLIENT_URL,
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
 };
 app.use(cors(corsOptions));
+
 app.use(express.json());
 app.use(passport.initialize());
 
 const io = new Server(server, {
   cors: {
-    origin: CLIENT_URL,
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -43,18 +55,22 @@ app.use((req, res, next) => {
   }
   next();
 });
+
 app.get("/api/ping", (req, res) => {
   res.status(200).json({ message: "pong" });
 });
-app.use("/api/auth", authRoutes); 
+
+app.use("/api/auth", authRoutes);
 app.use("/api/room", roomRoutes);
 app.use("/api/run", runRoutes);
+
 if (IS_PROD) {
   app.use(express.static(path.join(__dirname, '../client/dist')));
   app.get('*', (req, res) => {
     res.sendFile(path.resolve(__dirname, '../client/dist', 'index.html'));
   });
 }
+
 async function getAllConnectedClients(roomId, io) {
   const clients = await io.in(roomId).fetchSockets();
   return clients.map((client) => ({
@@ -62,9 +78,12 @@ async function getAllConnectedClients(roomId, io) {
     username: client.username,
   }));
 }
+
 const roomLanguages = {};
+
 io.on("connection", (socket) => {
   console.log(`User connected: ${socket.id}`);
+
   socket.on("join-room", async ({ roomId, username }) => {
     socket.username = username;
     socket.roomId = roomId;
@@ -76,6 +95,7 @@ io.on("connection", (socket) => {
       socket.emit("language-update", roomLanguages[roomId]);
     }
   });
+
   socket.on("code-change", async ({ language, newCode }) => {
     const roomId = socket.roomId;
     if (!roomId) return;
@@ -96,6 +116,7 @@ io.on("connection", (socket) => {
       console.error("DB Save Error:", dbError);
     }
   });
+
   socket.on("send-message", ({ message }) => {
     const roomId = socket.roomId;
     const username = socket.username;
@@ -109,12 +130,14 @@ io.on("connection", (socket) => {
       }),
     });
   });
+
   socket.on("language-change", ({ language }) => {
     const roomId = socket.roomId;
     if (!roomId) return;
     roomLanguages[roomId] = language;
     socket.to(roomId).emit("language-update", language);
   });
+
   socket.on("disconnecting", async () => {
     console.log(`User disconnected: ${socket.id}`);
     const roomId = socket.roomId;
