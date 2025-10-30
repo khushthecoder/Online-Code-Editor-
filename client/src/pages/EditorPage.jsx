@@ -9,6 +9,8 @@ import axios from "axios";
 import "./EditorPage.css";
 import toast from "react-hot-toast";
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
 const EditorPage = () => {
   const { roomId } = useParams();
   const { user, token } = useAuth();
@@ -32,7 +34,7 @@ const EditorPage = () => {
       try {
         const config = { headers: { Authorization: `Bearer ${token}` } };
         const response = await axios.get(
-          `http://localhost:5001/api/room/${roomId}`,
+          `${API_URL}/api/room/${roomId}`,
           config,
         );
         setCode(response.data[lang] || `// Welcome to ${lang}`);
@@ -113,7 +115,7 @@ const EditorPage = () => {
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       const response = await axios.post(
-        "http://localhost:5001/api/run",
+        `${API_URL}/api/run`,
         { language, code, stdin },
         config,
       );

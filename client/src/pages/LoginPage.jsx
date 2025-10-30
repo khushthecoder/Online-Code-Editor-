@@ -6,6 +6,8 @@ import toast from "react-hot-toast";
 import "./AuthPage.css";
 import { GoogleIcon } from "../components/Icons";
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
 const LoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,7 +17,7 @@ const LoginPage = () => {
     e.preventDefault();
     try {
       const response = await axios.post(
-        "http://localhost:5001/api/auth/login",
+        `${API_URL}/api/auth/login`,
         { email, password },
       );
       login(response.data.token, response.data.user);
@@ -27,7 +29,7 @@ const LoginPage = () => {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = "http://localhost:5001/api/auth/google";
+    window.location.href = `${API_URL}/api/auth/google`;
   };
 
   return (

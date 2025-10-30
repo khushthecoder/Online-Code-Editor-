@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 
 const AuthContext = createContext();
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
@@ -19,7 +21,9 @@ export const AuthProvider = ({ children }) => {
         try {
           axios.defaults.headers.common["Authorization"] =
             `Bearer ${storedToken}`;
-          const response = await axios.get("http://localhost:5001/api/auth/me");
+          
+          const response = await axios.get(`${API_URL}/api/auth/me`);
+          
           setUser(response.data);
           setToken(storedToken);
         } catch (error) {

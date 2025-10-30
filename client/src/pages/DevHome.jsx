@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import axios from "axios";
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
 const DevHome = () => {
   const [resp, setResp] = useState(null);
   const [err, setErr] = useState(null);
@@ -8,7 +10,8 @@ const DevHome = () => {
   const ping = async () => {
     try {
       setErr(null);
-      const r = await axios.get("http://localhost:5001/api/ping");
+      const r = await axios.get(`${API_URL}/api/ping`);
+      
       setResp(r.data);
     } catch (e) {
       setErr(e.message || "Error");

@@ -6,6 +6,8 @@ import { v4 as uuidV4 } from "uuid";
 import toast from "react-hot-toast";
 import "./HomePage.css";
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
 const HomePage = () => {
   const { token, logout } = useAuth();
   const navigate = useNavigate();
@@ -24,8 +26,9 @@ const HomePage = () => {
     try {
       const newRoomId = uuidV4();
       const config = { headers: { Authorization: `Bearer ${token}` } };
+      
       await axios.post(
-        "http://localhost:5001/api/room/create",
+        `${API_URL}/api/room/create`,
         { roomId: newRoomId },
         config,
       );
