@@ -6,6 +6,9 @@ import { css } from "@codemirror/lang-css";
 import { cpp } from "@codemirror/lang-cpp";
 import { python } from "@codemirror/lang-python";
 import { okaidia } from "@uiw/codemirror-theme-okaidia";
+
+import { githubLight } from "@uiw/codemirror-theme-github";
+
 import { useTheme } from "../context/ThemeContext";
 
 const Editor = ({ language, value, onChange }) => {
@@ -40,7 +43,8 @@ const Editor = ({ language, value, onChange }) => {
     <CodeMirror
       value={value}
       height="60vh"
-      theme={themeName === "dark" ? okaidia : "light"}
+      theme={themeName === "dark" ? okaidia : githubLight}
+      
       extensions={[getLanguageExtension()]}
       onChange={handleChange}
     />

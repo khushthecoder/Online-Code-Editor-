@@ -33,6 +33,7 @@ const EditorPage = () => {
       if (!token || !roomId) return;
       try {
         const config = { headers: { Authorization: `Bearer ${token}` } };
+        
         const response = await axios.get(
           `${API_URL}/api/room/${roomId}`,
           config,
@@ -114,6 +115,7 @@ const EditorPage = () => {
     setOutput("Running code...");
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
+      
       const response = await axios.post(
         `${API_URL}/api/run`,
         { language, code, stdin },
@@ -212,8 +214,6 @@ const EditorPage = () => {
             <option value="javascript">JavaScript</option>
             <option value="python">Python</option>
             <option value="cpp">C++</option>
-            <option value="html">HTML</option>
-            <option value="css">CSS</option>
           </select>
 
           <button
