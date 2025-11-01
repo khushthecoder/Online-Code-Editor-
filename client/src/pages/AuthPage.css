@@ -272,3 +272,18 @@
     padding: 1.5rem;
   }
 }
+
+.login-box {
+  width: 500px;
+  padding: 2rem;
+}
+@media (max-width: 768px) {
+  .login-box {
+    width: 90%;  
+    padding: 1rem; 
+  }
+
+  .authContainer {
+    flex-direction: column; 
+  }
+}
