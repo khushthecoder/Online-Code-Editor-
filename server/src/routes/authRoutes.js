@@ -4,7 +4,7 @@ const passport = require("passport");
 const jwt = require("jsonwebtoken");
 const authController = require("../controllers/authController");
 const authMiddleware = require("../middleware/authMiddleware");
-const CLIENT_URL = process.env.VITE_CLIENT_URL || "http://localhost:5173";
+const CLIENT_URL = "https://online-code-editor-1-em1j.onrender.com";
 router.post("/register", authController.register);
 router.post("/login", authController.login);
 router.get("/me", authMiddleware, authController.getMe);
@@ -20,7 +20,7 @@ router.get(
   "/google/callback",
   passport.authenticate("google", {
     session: false,
-    failureRedirect: "http://localhost:5173/login",
+    failureRedirect: `${CLIENT_URL}/login`,
   }),
   (req, res) => {
     const user = req.user;
@@ -35,7 +35,7 @@ router.get(
       username: user.username,
     };
     res.redirect(
-      `http://localhost:5173/auth-callback?token=${token}&user=${encodeURIComponent(
+      `${CLIENT_URL}/auth-callback?token=${token}&user=${encodeURIComponent(
         JSON.stringify(userDetails),
       )}`,
     );
