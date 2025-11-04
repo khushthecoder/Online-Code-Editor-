@@ -12,11 +12,18 @@ const SignupPage = () => {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  
+  const [isLoading, setIsLoading] = useState(false); 
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isLoading) return; 
+    setIsLoading(true); 
+
     try {
       const response = await axios.post(
         `${API_URL}/api/auth/register`,
@@ -32,10 +39,14 @@ const SignupPage = () => {
     } catch (error) {
       console.error("Signup failed", error);
       toast.error(error.response?.data?.message || "Signup failed");
+    } finally {
+      setIsLoading(false); 
     }
   };
 
   const handleGoogleLogin = () => {
+    if (isLoading) return;
+    setIsLoading(true); 
     window.location.href = `${API_URL}/api/auth/google`;
   };
 
@@ -74,16 +85,25 @@ const SignupPage = () => {
               placeholder="Password"
               required
             />
-            <button type="submit" className="btn submitBtn">
-              Sign Up
+            <button
+              type="submit"
+              className="btn submitBtn"
+              disabled={isLoading} 
+            >
+              {isLoading ? "Signing up..." : "Sign Up"}
             </button>
+
           </form>
           <div className="orDivider">
             <span className="orText">OR</span>
           </div>
-          <button onClick={handleGoogleLogin} className="btn googleBtn">
+          <button
+            onClick={handleGoogleLogin}
+            className="btn googleBtn"
+            disabled={isLoading} 
+          >
             <GoogleIcon />
-            Sign up with Google
+            {isLoading ? "Redirecting..." : "Sign up with Google"}
           </button>
 
           <div className="footerLink">
