@@ -34,7 +34,7 @@ const register = async (req, res) => {
         .status(400)
         .json({ message: "Username or email already exists" });
     }
-    res.status(500).json({ message: "Server error during registration" });
+    res.status(500).json({ message: "Server error during registration. Please try again later." });
   }
 };
 
@@ -74,7 +74,7 @@ const login = async (req, res) => {
     res.json({ user: userDetails, token });
   } catch (error) {
     console.error("[login] Login Error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error during login. Please try again later." });
   }
 };
 

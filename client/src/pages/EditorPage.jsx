@@ -6,7 +6,7 @@ import Chat from "../components/Chat";
 import ThemeToggle from "../components/ThemeToggle";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
-import "./EditorPage.css";
+
 import toast from "react-hot-toast";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
@@ -33,7 +33,7 @@ const EditorPage = () => {
       if (!token || !roomId) return;
       try {
         const config = { headers: { Authorization: `Bearer ${token}` } };
-        
+
         const response = await axios.get(
           `${API_URL}/api/room/${roomId}`,
           config,
@@ -115,7 +115,7 @@ const EditorPage = () => {
     setOutput("Running code...");
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      
+
       const response = await axios.post(
         `${API_URL}/api/run`,
         { language, code, stdin },

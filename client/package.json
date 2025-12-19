@@ -19,6 +19,7 @@
     "@uiw/codemirror-theme-okaidia": "^4.22.2",
     "@uiw/react-codemirror": "^4.22.2",
     "axios": "^1.7.2",
+    "caniuse-lite": "^1.0.30001760",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hot-toast": "^2.4.1",

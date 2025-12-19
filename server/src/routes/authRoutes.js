@@ -4,7 +4,7 @@ const passport = require("passport");
 const jwt = require("jsonwebtoken");
 const authController = require("../controllers/authController");
 const authMiddleware = require("../middleware/authMiddleware");
-const CLIENT_URL = "https://online-code-editor-1-em1j.onrender.com";
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 router.post("/register", authController.register);
 router.post("/login", authController.login);
 router.get("/me", authMiddleware, authController.getMe);
@@ -18,10 +18,19 @@ router.get(
 
 router.get(
   "/google/callback",
-  passport.authenticate("google", {
-    session: false,
-    failureRedirect: `${CLIENT_URL}/login`,
-  }),
+  (req, res, next) => {
+    passport.authenticate("google", { session: false }, (err, user, info) => {
+      if (err) {
+        console.error("Google Auth Error:", err);
+        return res.redirect(`${CLIENT_URL}/login?error=server_error`);
+      }
+      if (!user) {
+        return res.redirect(`${CLIENT_URL}/login?error=auth_failed`);
+      }
+      req.user = user;
+      next();
+    })(req, res, next);
+  },
   (req, res) => {
     const user = req.user;
     const token = jwt.sign(
