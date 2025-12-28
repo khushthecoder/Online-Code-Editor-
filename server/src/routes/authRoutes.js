@@ -4,7 +4,10 @@ const passport = require("passport");
 const jwt = require("jsonwebtoken");
 const authController = require("../controllers/authController");
 const authMiddleware = require("../middleware/authMiddleware");
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
+const prisma = require("../prismaClient");
+// CLIENT_URL should point to your FRONTEND (Vercel) URL
+const CLIENT_URL = process.env.CLIENT_URL || process.env.VITE_CLIENT_URL || "http://localhost:5173";
+
 router.post("/register", authController.register);
 router.post("/login", authController.login);
 router.get("/me", authMiddleware, authController.getMe);
@@ -21,10 +24,11 @@ router.get(
   (req, res, next) => {
     passport.authenticate("google", { session: false }, (err, user, info) => {
       if (err) {
-        console.error("Google Auth Error:", err);
-        return res.redirect(`${CLIENT_URL}/login?error=server_error`);
+        console.error("🔥 [AuthRoute] Passport Callback Error:", err);
+        return res.redirect(`${CLIENT_URL}/login?error=server_error&details=${encodeURIComponent(err.message)}`);
       }
       if (!user) {
+        console.error("🔥 [AuthRoute] No user returned from passport");
         return res.redirect(`${CLIENT_URL}/login?error=auth_failed`);
       }
       req.user = user;
@@ -50,5 +54,45 @@ router.get(
     );
   },
 );
+
+
+// Dev Route for Testing - Bypasses Google Auth
+if (process.env.NODE_ENV !== 'production') {
+  router.get("/dev-token", async (req, res) => {
+    try {
+      const email = "devtest@example.com";
+      const username = "DevTestUser";
+
+      let user = await prisma.user.findFirst({ where: { email } });
+
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            username,
+            email,
+            googleId: "dev-test-id",
+          },
+        });
+      }
+
+      const token = jwt.sign(
+        { userId: user.id, username: user.username },
+        process.env.JWT_SECRET,
+        { expiresIn: "1d" },
+      );
+
+      const userDetails = {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+      };
+
+      res.json({ token, user: userDetails });
+    } catch (error) {
+      console.error("Dev Token Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+}
 
 module.exports = router;

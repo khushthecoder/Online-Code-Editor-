@@ -61,10 +61,11 @@ passport.use(
         });
 
         return done(null, newUser);
+
       } catch (error) {
-        console.error("[GoogleAuth] Error:", error);
-        // If it's a connection error, we might see it here. 
-        // Returning the error allows Passport to handle it (redirect to failure)
+        console.error("🔥 [GoogleAuth] CRITICAL ERROR:", error);
+        console.error("🔥 [GoogleAuth] Stack:", error.stack);
+        // Explicitly pass error to done
         return done(error, null);
       }
     }

@@ -4,7 +4,7 @@ const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
 const passport = require("passport");
-const path = require('path'); 
+const path = require('path');
 require("./src/config/passport-setup");
 const prisma = require("./src/prismaClient");
 
@@ -19,9 +19,9 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 5001;
 
 const allowedOrigins = [
-  'http://localhost:5173', 
-  process.env.VITE_CLIENT_URL 
-].filter(Boolean); 
+  'http://localhost:5173',
+  process.env.VITE_CLIENT_URL
+].filter(Boolean);
 
 const corsOptions = {
   origin: function (origin, callback) {
@@ -102,14 +102,14 @@ io.on("connection", (socket) => {
       console.error("DB Save Error:", dbError);
     }
   });
-  
+
   socket.on("send-message", ({ message }) => {
     const roomId = socket.roomId;
     const username = socket.username;
     if (!roomId || !username) return;
-    
+
     const istTime = new Date().toLocaleTimeString('en-US', {
-      timeZone: 'Asia/Kolkata', 
+      timeZone: 'Asia/Kolkata',
       hour: '2-digit',
       minute: '2-digit',
       hour12: true
@@ -148,6 +148,18 @@ io.on("connection", (socket) => {
   });
 });
 
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error("🔥 Global Error Caught:", err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  res.status(500).json({ message: "Internal Server Error", error: err.message });
+});
+
 server.listen(PORT, () => {
   console.log(`Server listening on http://localhost:${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV}`);
+  console.log(`Database URL: ${process.env.DATABASE_URL ? "Set" : "Missing"}`);
+  console.log(`Client URL: ${process.env.VITE_CLIENT_URL || "Default"}`);
 });

@@ -18,30 +18,23 @@ const Chat = ({ messages, onSendMessage }) => {
   };
 
   return (
-    <div className="chatWrapper">
-      <div className="messageArea">
+    <div className="chatWrapper flex flex-col h-full overflow-hidden bg-transparent">
+      {/* Messages Area - Scrollable */}
+      <div className="messageArea flex-grow overflow-y-auto p-6 space-y-6 custom-scrollbar">
         {messages.map((msg, index) => (
-          <div key={index} className="message">
-            <strong>{msg.username}</strong>
-            <span>({msg.time})</span>
-            <p>{msg.text}</p>
+          <div key={index} className="message flex flex-col group animate-fadeIn">
+            <div className="flex items-baseline justify-between mb-1.5 px-1">
+              <span className="font-bold text-sm text-blue-400 drop-shadow-sm">{msg.username}</span>
+              <span className="text-[10px] text-gray-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity">{msg.time}</span>
+            </div>
+            <div className="bg-[#161b22] p-3.5 rounded-2xl rounded-tl-sm border border-[#30363d] text-[15px] text-gray-200 leading-relaxed shadow-sm hover:border-gray-600 transition-colors">
+              <p className="break-words">{msg.text}</p>
+            </div>
           </div>
         ))}
-        <div ref={messagesEndRef} className="messageEnd" />
+        <div ref={messagesEndRef} className="messageEnd h-2" />
       </div>
 
-      <form onSubmit={handleSend} className="chatForm">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Type a message..."
-          className="chatInput"
-        />
-        <button type="submit" className="sendBtn">
-          Send
-        </button>
-      </form>
     </div>
   );
 };
