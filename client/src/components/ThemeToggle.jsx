@@ -1,62 +1,59 @@
-import React from "react";
-import { useTheme } from "../context/ThemeContext";
-
+import React from 'react';
+import { useTheme } from '../context/ThemeContext';
 
 const ThemeToggle = () => {
-  const themeContext = useTheme();
-  if (!themeContext) {
-    return null;
-  }
-  const { theme, toggleTheme } = themeContext;
-
-  const isLight = theme === "light";
+  const { theme, toggleTheme } = useTheme();
+  const isLight = theme === 'light';
 
   return (
     <div
       onClick={toggleTheme}
-      className="group flex items-center gap-3 cursor-pointer select-none p-1 rounded-lg transition-colors hover:bg-white/5"
+      className="flex items-center gap-3 cursor-pointer group select-none transition-opacity hover:opacity-100 opacity-80"
       title={isLight ? "Switch to Dark Mode" : "Switch to Light Mode"}
+      style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
     >
-      <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide group-hover:text-gray-300 transition-colors">
-        Appearance
-      </span>
-
+      {/* Toggle Switch */}
       <div
-        className="relative flex items-center transition-all bg-[#21262d] border border-[#30363d] rounded-full active:scale-95 group-hover:border-gray-500"
         style={{
-          width: '52px',
-          height: '26px',
-          backgroundColor: isLight ? '#bae6fd' : '#21262d',
           position: 'relative',
-          overflow: 'hidden'
+          width: '44px',
+          height: '24px',
+          backgroundColor: isLight ? '#e5e7eb' : '#21262d',
+          border: isLight ? '1px solid #d1d5db' : '1px solid #30363d',
+          borderRadius: '999px',
+          transition: 'background-color 0.3s, border-color 0.3s',
+          display: 'flex',
+          alignItems: 'center',
+          boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)'
         }}
       >
-
-        <div className="absolute inset-0 flex justify-between items-center px-2">
-          <span style={{ fontSize: '10px', opacity: isLight ? 0 : 1, transition: 'opacity 0.3s' }}>🌙</span>
-          <span style={{ fontSize: '11px', opacity: isLight ? 1 : 0, transition: 'opacity 0.3s' }}>☀️</span>
-        </div>
-
-
+        {/* Knob */}
         <div
-          className="shadow-sm"
           style={{
-            width: '20px',
-            height: '20px',
-            backgroundColor: '#ffffff',
+            width: '18px',
+            height: '18px',
+            backgroundColor: isLight ? '#1f2937' : '#f3f4f6',
             borderRadius: '50%',
             position: 'absolute',
-            top: '2px',
             left: '2px',
-            transform: isLight ? 'translateX(26px)' : 'translateX(0)',
+            transform: isLight ? 'translateX(20px)' : 'translateX(0)',
             transition: 'transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10
+            boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
           }}
-        >
-        </div>
+        />
+      </div>
+
+      {/* Label */}
+      <div style={{ fontSize: '12px', fontWeight: 'bold', color: isLight ? '#374151' : '#9ca3af', display: 'flex', itemsAlign: 'center', gap: '4px', minWidth: '60px' }}>
+        {isLight ? (
+          <>
+            <span>☀️</span> Light
+          </>
+        ) : (
+          <>
+            <span>🌙</span> Dark
+          </>
+        )}
       </div>
     </div>
   );

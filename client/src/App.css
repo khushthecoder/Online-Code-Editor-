@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
 :root {
   --bg-primary: #0a0a0f;
   /* Darker space blue/black for premium feel */
@@ -31,8 +33,7 @@
   /* Outfit is great for modern tech */
 }
 
-/* Import Font (Assuming Inter is standard, adding generic sans-serif fallback) */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
 
 body {
   margin: 0;

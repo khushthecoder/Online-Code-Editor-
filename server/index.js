@@ -11,6 +11,7 @@ const prisma = require("./src/prismaClient");
 const authRoutes = require("./src/routes/authRoutes");
 const roomRoutes = require("./src/routes/roomRoutes");
 const runRoutes = require("./src/routes/runRoutes");
+const aiRoutes = require("./src/routes/aiRoutes");
 
 const app = express();
 const server = http.createServer(app);
@@ -23,9 +24,13 @@ const allowedOrigins = [
   process.env.VITE_CLIENT_URL
 ].filter(Boolean);
 
+// Allow requests from any origin in development to support cross-device testing
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1 || !IS_PROD) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -42,7 +47,7 @@ app.use(passport.initialize());
 
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: "*", // Allow all origins for sockets in dev (simplifies cross-device)
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -60,20 +65,21 @@ app.get("/api/ping", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/room", roomRoutes);
 app.use("/api/run", runRoutes);
+app.use("/api/ai", aiRoutes);
 
 async function getAllConnectedClients(roomId, io) {
   const clients = await io.in(roomId).fetchSockets();
   return clients.map((client) => ({
     socketId: client.id,
-    username: client.username,
+    username: client.data.username || "Guest", // Use .data for persistence
   }));
 }
 const roomLanguages = {};
 io.on("connection", (socket) => {
   console.log(`User connected: ${socket.id}`);
   socket.on("join-room", async ({ roomId, username }) => {
-    socket.username = username;
-    socket.roomId = roomId;
+    socket.data.username = username; // Store in .data
+    socket.roomId = roomId; // We can still attach to socket instance for convenient disconnect handling
     socket.join(roomId);
     console.log(`User ${socket.id} (${username}) joined room ${roomId}`);
     const clients = await getAllConnectedClients(roomId, io);
@@ -105,7 +111,7 @@ io.on("connection", (socket) => {
 
   socket.on("send-message", ({ message }) => {
     const roomId = socket.roomId;
-    const username = socket.username;
+    const username = socket.data.username;
     if (!roomId || !username) return;
 
     const istTime = new Date().toLocaleTimeString('en-US', {
@@ -157,9 +163,26 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: "Internal Server Error", error: err.message });
 });
 
-server.listen(PORT, () => {
-  console.log(`Server listening on http://localhost:${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV}`);
-  console.log(`Database URL: ${process.env.DATABASE_URL ? "Set" : "Missing"}`);
-  console.log(`Client URL: ${process.env.VITE_CLIENT_URL || "Default"}`);
-});
+const startServer = (port) => {
+  const handleListenError = (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`Port ${port} is in use, trying ${port + 1}...`);
+      server.close(); // Explicitly close to prevent ERR_SERVER_ALREADY_LISTEN
+      startServer(port + 1);
+    } else {
+      console.error(err);
+    }
+  };
+
+  server.once('error', handleListenError); // Use 'once' to avoid listener accumulation
+
+  server.listen(port, () => {
+    server.removeListener('error', handleListenError); // Cleanup if successful
+    console.log(`Server listening on http://localhost:${port}`);
+    console.log(`Environment: ${process.env.NODE_ENV}`);
+    console.log(`Database URL: ${process.env.DATABASE_URL ? "Set" : "Missing"}`);
+    console.log(`Client URL: ${process.env.VITE_CLIENT_URL || "Default"}`);
+  });
+};
+
+startServer(PORT);

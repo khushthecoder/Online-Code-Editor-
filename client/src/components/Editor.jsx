@@ -11,7 +11,7 @@ import { githubLight } from "@uiw/codemirror-theme-github";
 
 import { useTheme } from "../context/ThemeContext";
 
-const Editor = ({ language, value, onChange }) => {
+const Editor = ({ language, value, onChange, onEditorMount }) => {
   const themeContext = useTheme();
   const themeName = themeContext?.theme || "dark";
 
@@ -44,9 +44,14 @@ const Editor = ({ language, value, onChange }) => {
       value={value}
       height="60vh"
       theme={themeName === "dark" ? okaidia : githubLight}
-      
+
       extensions={[getLanguageExtension()]}
       onChange={handleChange}
+      onCreateEditor={(view, state) => {
+        if (onEditorMount) {
+          onEditorMount(view);
+        }
+      }}
     />
   );
 };
