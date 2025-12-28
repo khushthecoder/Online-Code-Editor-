@@ -15,6 +15,11 @@ const register = async (req, res) => {
       },
     });
 
+    if (!process.env.JWT_SECRET) {
+      console.error("[register] CRITICAL: JWT_SECRET is missing in environment variables.");
+      throw new Error("Server misconfiguration: Missing JWT_SECRET");
+    }
+
     const token = jwt.sign(
       { userId: user.id, username: user.username },
       process.env.JWT_SECRET,
@@ -29,13 +34,22 @@ const register = async (req, res) => {
 
     res.status(201).json({ user: userDetails, token });
   } catch (error) {
-    console.error("[register] Registration Error:", error);
+    console.error("[register] Registration Error Details:", {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
+
     if (error.code === "P2002") {
       return res
         .status(400)
         .json({ message: "Username or email already exists" });
     }
-    res.status(500).json({ message: "Server error during registration. Please try again later." });
+    // Return specific error message for debugging (remove in strict production if needed, but helpful now)
+    res.status(500).json({
+      message: "Server error during registration.",
+      debug_error: error.message
+    });
   }
 };
 
