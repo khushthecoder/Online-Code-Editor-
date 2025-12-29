@@ -2,14 +2,14 @@
 
 :root {
   --bg-primary: #0a0a0f;
-  /* Darker space blue/black for premium feel */
+
   --bg-secondary: #13131f;
-  /* Slightly lighter for cards */
+
   --bg-tertiary: #1c1c2e;
   --bg-console: #0f0f16;
 
   --bg-input-dark: rgba(255, 255, 255, 0.05);
-  /* Glassy input */
+
   --bg-input-light: #ffffff;
   --text-input-light: #333333;
 
@@ -21,16 +21,16 @@
   --border-secondary: rgba(255, 255, 255, 0.05);
 
   --accent-primary: #6366f1;
-  /* Modern Indigo/Violet for AI feel */
+
   --accent-glow: rgba(99, 102, 241, 0.5);
   --accent-secondary: #8b5cf6;
-  /* Purple */
+
   --accent-cyan: #06b6d4;
-  /* Cyan for highlights */
+
   --accent-primary-text: #ffffff;
 
   --font-main: "Outfit", "Inter", sans-serif;
-  /* Outfit is great for modern tech */
+
 }
 
 
@@ -62,12 +62,12 @@ body {
   background: transparent;
 }
 
-/* --- Common/Shared --- */
+
 .btn {
   width: 100%;
   padding: 0.9rem;
   border-radius: 12px;
-  /* Modern soft roundness */
+
   border: none;
   font-size: 1rem;
   font-weight: 600;
@@ -98,7 +98,7 @@ body {
   transform: none;
 }
 
-/* --- Premium Auth Page --- */
+
 .authPageWrapper {
   display: flex;
   align-items: center;
@@ -106,11 +106,11 @@ body {
   min-height: 100vh;
   position: relative;
   overflow: hidden;
-  /* Deep Space Background */
+
   background: var(--bg-primary);
 }
 
-/* Ambient Background Glows */
+
 .ambient-glow {
   position: absolute;
   width: 600px;
@@ -237,7 +237,7 @@ body {
   background: var(--bg-input-dark);
   border: 1px solid var(--border-primary);
   padding: 1rem 1rem 1rem 3rem;
-  /* Space for icon */
+
   border-radius: 12px;
   color: white;
   font-size: 0.95rem;
@@ -332,8 +332,7 @@ body {
   text-decoration: underline;
 }
 
-/* --- Editor Page & Shared --- */
-/* Existing editor styles preserved but modernized slightly where shared */
+
 .editorPageWrapper {
   display: flex;
   flex-direction: row;
@@ -354,7 +353,7 @@ body {
   flex-direction: column;
 }
 
-/* ... Keeping existing editor-specific styles ... */
+
 .userList {
   display: flex;
   flex-wrap: wrap;
@@ -383,7 +382,7 @@ body {
   border: 1px solid var(--border-primary);
 }
 
-/* ... Preserving Editor parts ... */
+
 .chatContainer {
   flex: 1;
   min-height: 200px;
@@ -539,7 +538,7 @@ body {
   white-space: pre-wrap;
 }
 
-/* --- Responsive --- */
+
 @media (max-width: 768px) {
   .editorPageWrapper {
     flex-direction: column;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
-import { GoogleIcon } from "../components/Icons"; // Ensure this component handles the icon rendering
+import { GoogleIcon } from "../components/Icons"; 
 import toast from "react-hot-toast";
 import axios from "axios";
 
@@ -58,7 +58,7 @@ const AuthPage = () => {
 
     return (
         <div className="authPageWrapper">
-            {/* Ambient Background Glows */}
+
             <div className="ambient-glow glow-1"></div>
             <div className="ambient-glow glow-2"></div>
 

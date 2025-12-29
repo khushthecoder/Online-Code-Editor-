@@ -64,27 +64,56 @@ const EditorPage = () => {
     fetchCode(language);
   }, [language, fetchCode]);
 
-  useEffect(() => {
-    if (!user) return;
-    socket.connect();
-    socket.emit("join-room", { roomId, username: user?.username || "Guest" });
+  const [isConnected, setIsConnected] = useState(false);
 
-    const handleUserList = (userList) => setClients(userList);
-    const handleNewMessage = (message) => {
-      setMessages((prevMessages) => [...prevMessages, message]);
+  useEffect(() => {
+    if (!user || !roomId) return;
+
+    const handleConnect = () => {
+      setIsConnected(true);
+      console.log("Socket connected:", socket.id);
+      socket.emit("join-room", { roomId, username: user.username });
     };
 
+    const handleDisconnect = () => {
+      setIsConnected(false);
+      console.log("Socket disconnected");
+    };
+
+    const handleConnectError = (err) => {
+      setIsConnected(false);
+      console.error("Socket connection error:", err);
+      toast.error("Connection failed. Retrying...");
+    };
+
+    const handleUserList = (userList) => {
+      setClients(userList);
+    };
+
+    const handleNewMessage = (message) => {
+      setMessages((prev) => [...prev, message]);
+    };
+
+
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+    socket.on("connect_error", handleConnectError);
     socket.on("update-user-list", handleUserList);
     socket.on("new-message", handleNewMessage);
 
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (!socket.connected) {
+      socket.connect();
+    } else {
+      handleConnect();
     }
 
     return () => {
-      socket.disconnect();
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+      socket.off("connect_error", handleConnectError);
       socket.off("update-user-list", handleUserList);
       socket.off("new-message", handleNewMessage);
+      socket.disconnect();
     };
   }, [roomId, user]);
 
@@ -178,9 +207,7 @@ const EditorPage = () => {
       return;
     }
 
-    // Add User Prompt to History
     setAiHistory(prev => [...prev, { role: 'user', text: prompt }]);
-    // Auto-scroll history
     setTimeout(() => historyEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
 
     setIsAiLoading(true);
@@ -229,7 +256,6 @@ const EditorPage = () => {
       editorView.dispatch({
         changes: { from: targetRange.from, to: targetRange.to, insert: aiResponse }
       });
-      // Add AI Success to History
       setAiHistory(prev => [...prev, { role: 'ai', text: 'Changes applied successfully.' }]);
       toast.success("AI changes applied!");
     } catch (error) {
@@ -243,11 +269,9 @@ const EditorPage = () => {
     }
   };
 
-  // Ref for abort controller
   const abortControllerRef = useRef(null);
 
   const handleRunCode = async () => {
-    // If already running, treating this as a "STOP" command
     if (isRunning) {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -266,14 +290,13 @@ const EditorPage = () => {
     setIsRunning(true);
     setOutput("Running code...");
 
-    // Create new abort controller
     abortControllerRef.current = new AbortController();
 
     try {
       const config = {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000, // 10s server timeout
-        signal: abortControllerRef.current.signal // client-side abort capability
+        timeout: 10000,
+        signal: abortControllerRef.current.signal
       };
 
       const response = await axios.post(
@@ -328,11 +351,9 @@ const EditorPage = () => {
 
   if (!user) return <div>Loading...</div>;
 
-  // INLINE STYLES CONSTANTS
   const styles = {
     page: { display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', backgroundColor: '#0d1117', color: '#d1d5db', fontFamily: 'sans-serif' },
 
-    // LEFT COLUMN
     leftCol: { display: 'flex', flexDirection: 'column', width: '280px', minWidth: '240px', maxWidth: '500px', resize: 'horizontal', overflow: 'hidden', borderRight: '1px solid #30363d', backgroundColor: '#161b22', flexShrink: 0 },
     columnHeader: { height: '48px', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', padding: '0 16px', backgroundColor: '#161b22', flexShrink: 0 },
     headerTitle: { fontSize: '14px', fontWeight: 'bold', color: '#e5e7eb', textTransform: 'uppercase', letterSpacing: '0.05em' },
@@ -343,7 +364,6 @@ const EditorPage = () => {
     footer: { padding: '12px', borderTop: '1px solid #30363d', backgroundColor: '#161b22', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 },
     input: { width: '100%', backgroundColor: '#0d1117', border: '1px solid #30363d', borderRadius: '4px', padding: '6px 8px', fontSize: '12px', color: '#d1d5db', outline: 'none' },
 
-    // CENTER COLUMN
     centerCol: { flexGrow: 1, display: 'flex', flexDirection: 'column', minWidth: 0, borderRight: '1px solid #30363d' },
     centerHeader: { height: '48px', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', backgroundColor: '#161b22', flexShrink: 0 },
     editorContainer: { flexGrow: 1, position: 'relative', overflow: 'hidden' },
@@ -353,10 +373,8 @@ const EditorPage = () => {
     panelTitle: { padding: '6px 12px', borderBottom: '1px solid #30363d', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', color: '#6b7280', backgroundColor: '#161b22' },
     panelContent: { flexGrow: 1, backgroundColor: '#0d1117', color: '#d1d5db', padding: '12px', fontSize: '14px', fontFamily: 'monospace', resize: 'none', outline: 'none', border: 'none', overflow: 'auto' },
 
-    // RIGHT COLUMN (AI)
-    rightCol: { display: 'flex', flexDirection: 'column', backgroundColor: '#161b22', flexShrink: 0, transition: 'width 0.3s', overflow: 'hidden', borderLeft: '1px solid #30363d' }, // width handled dynamically
+    rightCol: { display: 'flex', flexDirection: 'column', backgroundColor: '#161b22', flexShrink: 0, transition: 'width 0.3s', overflow: 'hidden', borderLeft: '1px solid #30363d' },
 
-    // UTILS
     btnRun: { display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 16px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', border: 'none', cursor: 'pointer', backgroundColor: '#16a34a', color: 'white' },
     btnAI: { display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', border: '1px solid #30363d', cursor: 'pointer' },
   };
@@ -364,10 +382,11 @@ const EditorPage = () => {
   return (
     <div style={styles.page}>
 
-      {/* 1. LEFT SIDEBAR */}
       <div style={styles.leftCol}>
         <div style={styles.columnHeader}>
-          <span style={styles.headerTitle}>Connected</span>
+          <span style={{ ...styles.headerTitle, color: isConnected ? '#4ade80' : '#f87171' }}>
+            {isConnected ? 'Connected' : 'Disconnected'}
+          </span>
         </div>
 
         <div style={styles.usersBody}>
@@ -429,12 +448,10 @@ const EditorPage = () => {
               transition: 'all 0.2s'
             }}>
               {isCopied ? (
-                // Check Icon
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               ) : (
-                // Copy Icon
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -446,10 +463,8 @@ const EditorPage = () => {
         </div>
       </div>
 
-      {/* 2. CENTER COLUMN */}
       <div style={styles.centerCol}>
         <div style={styles.centerHeader}>
-          {/* Left: Lang */}
           <div style={{ position: 'relative' }}>
             <select
               value={language}
@@ -463,7 +478,6 @@ const EditorPage = () => {
             <div style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#9ca3af', fontSize: '10px' }}>▼</div>
           </div>
 
-          {/* Right: Buttons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button onClick={handleRunCode} disabled={isRunning} style={{ ...styles.btnRun, backgroundColor: isRunning ? '#374151' : '#16a34a', color: isRunning ? '#9ca3af' : 'white', cursor: isRunning ? 'not-allowed' : 'pointer' }}>
               {isRunning ? 'Running' : 'Run'}
@@ -493,7 +507,6 @@ const EditorPage = () => {
         </div>
       </div>
 
-      {/* 3. RIGHT COLUMN (AI) */}
       <div style={{ ...styles.rightCol, width: isAIPanelOpen ? '320px' : '0px' }}>
         <div style={{ ...styles.columnHeader, justifyContent: 'space-between' }}>
           <span style={styles.headerTitle}>AI Copilot</span>
@@ -501,7 +514,6 @@ const EditorPage = () => {
         </div>
 
         <div style={{ flexGrow: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {/* Instructions (only show if history is empty) */}
           {aiHistory.length === 0 && (
             <div style={{ backgroundColor: '#0d1117', border: '1px solid #30363d', borderRadius: '4px', padding: '12px', color: '#9ca3af', fontSize: '12px', lineHeight: '1.5' }}>
               <p style={{ marginBottom: '8px', color: '#e5e7eb', fontWeight: 'bold' }}>Instructions:</p>
@@ -512,7 +524,6 @@ const EditorPage = () => {
             </div>
           )}
 
-          {/* History Feed */}
           {aiHistory.map((item, index) => (
             <div key={index} style={{
               alignSelf: item.role === 'user' ? 'flex-end' : 'flex-start',

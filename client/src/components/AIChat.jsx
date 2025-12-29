@@ -3,7 +3,6 @@ import axios from "axios";
 import { useAuth } from "../context/AuthContext";
 import ReactMarkdown from "react-markdown";
 
-// Markdown styles wrapper
 const MarkdownContent = ({ content }) => {
     return (
         <div className="prose prose-invert prose-sm max-w-none text-gray-300">
@@ -37,7 +36,6 @@ const AIChat = ({ code, language, onCodeChange }) => {
     ]);
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
-    // State to track if user is near bottom
     const [isNearBottom, setIsNearBottom] = useState(true);
     const messagesEndRef = useRef(null);
 
@@ -45,17 +43,14 @@ const AIChat = ({ code, language, onCodeChange }) => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    // Handle scroll events to detect if user is scrolling up
     const handleScroll = (e) => {
         const { scrollTop, scrollHeight, clientHeight } = e.target;
-        // User is considered "near bottom" if within 100px of the bottom
         const bottomThreshold = 100;
         const isBottom = scrollHeight - scrollTop - clientHeight <= bottomThreshold;
         setIsNearBottom(isBottom);
     };
 
     useEffect(() => {
-        // Only auto-scroll if the user was already near the bottom
         if (isNearBottom) {
             scrollToBottom();
         }
@@ -69,18 +64,16 @@ const AIChat = ({ code, language, onCodeChange }) => {
         setMessages(prev => [...prev, userMessage]);
         setInput("");
         setLoading(true);
-        // Force scroll to bottom on sending new message
         setIsNearBottom(true);
         setTimeout(scrollToBottom, 100);
 
         try {
             const payload = {
                 prompt: userMessage.text,
-                code: code, // Pass current editor code
-                language: language // Pass current language
+                code: code,
+                language: language
             };
 
-            // Get API URL from enviroment or default
             const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
             const response = await axios.post(`${API_URL}/api/ai/chat`, payload, {
@@ -89,18 +82,15 @@ const AIChat = ({ code, language, onCodeChange }) => {
 
             const reply = response.data.text;
 
-            // Check if we should apply code directly
             if (onCodeChange) {
                 let codeToUpdate = reply;
 
-                // Attempt to strip markdown code blocks if present
                 const codeBlockRegex = /```(?:[\w]*\n)?([\s\S]*?)```/;
                 const match = reply.match(codeBlockRegex);
                 if (match) {
                     codeToUpdate = match[1];
                 }
 
-                // STRICT: Always apply to editor. Never show in chat.
                 onCodeChange(codeToUpdate);
                 setMessages(prev => [...prev, { role: 'assistant', text: "✅ Code updated in editor." }]);
             } else {
@@ -118,9 +108,8 @@ const AIChat = ({ code, language, onCodeChange }) => {
 
     return (
         <div className="flex flex-col h-full overflow-hidden bg-gray-900 border-r border-gray-800 relative">
-            {/* Messages Area - Scrollable */}
             <div
-                className="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-4 pb-24" // Added padding-bottom to prevent content hiding behind sticky input
+                className="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-4 pb-24"
                 onScroll={handleScroll}
             >
                 {messages.map((msg, index) => (
@@ -157,7 +146,6 @@ const AIChat = ({ code, language, onCodeChange }) => {
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area - Fixed/Sticky at Bottom */}
             <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-800 bg-[#0d1117] z-10">
                 <form onSubmit={handleSend} className="relative">
                     <input
@@ -176,7 +164,6 @@ const AIChat = ({ code, language, onCodeChange }) => {
                             : 'text-gray-600 cursor-not-allowed'
                             }`}
                     >
-                        {/* Send Icon */}
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                     </button>
                 </form>

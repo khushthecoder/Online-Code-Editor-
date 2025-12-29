@@ -45,7 +45,7 @@ const register = async (req, res) => {
         .status(400)
         .json({ message: "Username or email already exists" });
     }
-    // Return specific error message for debugging (remove in strict production if needed, but helpful now)
+
     res.status(500).json({
       message: "Server error during registration.",
       debug_error: error.message

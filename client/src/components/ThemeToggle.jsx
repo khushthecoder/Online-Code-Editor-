@@ -12,7 +12,7 @@ const ThemeToggle = () => {
       title={isLight ? "Switch to Dark Mode" : "Switch to Light Mode"}
       style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
     >
-      {/* Toggle Switch */}
+
       <div
         style={{
           position: 'relative',
@@ -27,7 +27,7 @@ const ThemeToggle = () => {
           boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)'
         }}
       >
-        {/* Knob */}
+
         <div
           style={{
             width: '18px',
@@ -43,7 +43,7 @@ const ThemeToggle = () => {
         />
       </div>
 
-      {/* Label */}
+
       <div style={{ fontSize: '12px', fontWeight: 'bold', color: isLight ? '#374151' : '#9ca3af', display: 'flex', itemsAlign: 'center', gap: '4px', minWidth: '60px' }}>
         {isLight ? (
           <>

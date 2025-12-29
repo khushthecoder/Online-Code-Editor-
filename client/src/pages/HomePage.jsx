@@ -40,7 +40,7 @@ const HomePage = () => {
 
   return (
     <div className="authPageWrapper">
-      {/* Ambient Background Glows */}
+
       <div className="ambient-glow glow-1"></div>
       <div className="ambient-glow glow-2"></div>
 

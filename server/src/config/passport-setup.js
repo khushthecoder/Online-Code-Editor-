@@ -20,10 +20,10 @@ passport.use(
         const googleId = profile.id;
         const username = profile.displayName || email.split("@")[0];
 
-        // Robust find/create using transaction or findFirst to avoid race conditions
+
         console.log(`[GoogleAuth] Processing user: ${email}`);
 
-        // Try to find existing user by email or googleId
+
         const existingUser = await prisma.user.findFirst({
           where: {
             OR: [{ email: email }, { googleId: googleId }],
@@ -31,7 +31,7 @@ passport.use(
         });
 
         if (existingUser) {
-          // If user exists but no googleId, link it
+
           if (!existingUser.googleId) {
             console.log(`[GoogleAuth] Linking Google account to existing user: ${email}`);
             const updatedUser = await prisma.user.update({
@@ -44,11 +44,9 @@ passport.use(
           return done(null, existingUser);
         }
 
-        // Create new user
-        // Ensure unique username
         let baseUsername = profile.displayName || email.split("@")[0];
-        baseUsername = baseUsername.replace(/\s+/g, '').toLowerCase(); // clean up
-        const uniqueSuffix = Math.floor(1000 + Math.random() * 9000); // 4 digit random
+        baseUsername = baseUsername.replace(/\s+/g, '').toLowerCase(); 
+        const uniqueSuffix = Math.floor(1000 + Math.random() * 9000); 
         const finalUsername = `${baseUsername}${uniqueSuffix}`;
 
         console.log(`[GoogleAuth] Creating new user: ${email} as ${finalUsername}`);
@@ -65,7 +63,7 @@ passport.use(
       } catch (error) {
         console.error("🔥 [GoogleAuth] CRITICAL ERROR:", error);
         console.error("🔥 [GoogleAuth] Stack:", error.stack);
-        // Explicitly pass error to done
+
         return done(error, null);
       }
     }

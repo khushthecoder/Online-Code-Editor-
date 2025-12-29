@@ -19,7 +19,7 @@ const Chat = ({ messages, onSendMessage }) => {
 
   return (
     <div className="chatWrapper flex flex-col h-full overflow-hidden bg-transparent">
-      {/* Messages Area - Scrollable */}
+
       <div className="messageArea flex-grow overflow-y-auto p-6 space-y-6 custom-scrollbar">
         {messages.map((msg, index) => (
           <div key={index} className="message flex flex-col group animate-fadeIn">

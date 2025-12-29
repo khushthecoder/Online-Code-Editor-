@@ -78,17 +78,13 @@ const runCode = async (req, res) => {
       compile_timeout: 10000,
     });
 
-    console.log("Piston API Response:", JSON.stringify(response.data, null, 2)); // improved logging
+    console.log("Piston API Response:", JSON.stringify(response.data, null, 2)); 
     const result = response.data.run || response.data.compile;
 
     if (!result) {
       throw new Error(response.data.message || "Unknown Piston API error");
     }
 
-    // Piston execution result
-    // Prioritize `stdout` from the run phase.
-    // If output is truly empty, we pass empty string, but we rely on frontend to handle "No output" message if needed.
-    // However, we want to ensure we capture stdout.
     res.json({
       ran: result.signal !== "SIGKILL" && result.signal !== "SIGSEGV",
       output: result.stdout !== undefined ? result.stdout : result.output,

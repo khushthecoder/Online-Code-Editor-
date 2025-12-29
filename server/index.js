@@ -24,15 +24,13 @@ const allowedOrigins = [
   process.env.VITE_CLIENT_URL
 ].filter(Boolean);
 
-// Allow requests from any origin in development to support cross-device testing
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
     const isAllowed = allowedOrigins.includes(origin) ||
-      (!IS_PROD) ||
-      /^https:\/\/online-code-editor-.*\.vercel\.app$/.test(origin); // Dynamic check for Vercel preview URLs
+      /^http:\/\/localhost:\d+$/.test(origin) ||
+      /^https:\/\/online-code-editor-.*\.vercel\.app$/.test(origin);
 
     if (isAllowed) {
       callback(null, true);
@@ -42,17 +40,20 @@ const corsOptions = {
     }
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
   credentials: true,
+  optionsSuccessStatus: 204
 };
+
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 app.use(passport.initialize());
 
 const io = new Server(server, {
   cors: {
-    origin: "*", // Allow all origins for sockets in dev (simplifies cross-device)
+    origin: "*",
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -76,15 +77,15 @@ async function getAllConnectedClients(roomId, io) {
   const clients = await io.in(roomId).fetchSockets();
   return clients.map((client) => ({
     socketId: client.id,
-    username: client.data.username || "Guest", // Use .data for persistence
+    username: client.data.username || "Guest",
   }));
 }
 const roomLanguages = {};
 io.on("connection", (socket) => {
   console.log(`User connected: ${socket.id}`);
   socket.on("join-room", async ({ roomId, username }) => {
-    socket.data.username = username; // Store in .data
-    socket.roomId = roomId; // We can still attach to socket instance for convenient disconnect handling
+    socket.data.username = username;
+    socket.roomId = roomId;
     socket.join(roomId);
     console.log(`User ${socket.id} (${username}) joined room ${roomId}`);
     const clients = await getAllConnectedClients(roomId, io);
@@ -117,7 +118,14 @@ io.on("connection", (socket) => {
   socket.on("send-message", ({ message }) => {
     const roomId = socket.roomId;
     const username = socket.data.username;
-    if (!roomId || !username) return;
+    if (!roomId) {
+      console.warn(`[Socket Warning] User ${socket.id} tried to send message without roomId.`);
+      return;
+    }
+    if (!username) {
+      console.warn(`[Socket Warning] User ${socket.id} tried to send message without username.`);
+      return;
+    }
 
     const istTime = new Date().toLocaleTimeString('en-US', {
       timeZone: 'Asia/Kolkata',
@@ -126,6 +134,7 @@ io.on("connection", (socket) => {
       hour12: true
     });
 
+    console.log(`[Message] ${username} in Room ${roomId}: ${message}`);
     io.in(roomId).emit("new-message", {
       username: username,
       text: message,
@@ -139,10 +148,14 @@ io.on("connection", (socket) => {
     roomLanguages[roomId] = language;
     socket.to(roomId).emit("language-update", language);
   });
+
   socket.on("disconnecting", async () => {
-    console.log(`User disconnected: ${socket.id}`);
-    const roomId = socket.roomId;
-    if (roomId) {
+    const rooms = [...socket.rooms];
+    console.log(`User disconnecting: ${socket.id}, Rooms: ${rooms}`);
+
+    rooms.forEach((roomId) => {
+      if (roomId === socket.id) return;
+
       socket.leave(roomId);
       setTimeout(async () => {
         try {
@@ -155,11 +168,10 @@ io.on("connection", (socket) => {
           console.error("Error on disconnect broadcast", e);
         }
       }, 100);
-    }
+    });
   });
 });
 
-// Global Error Handler
 app.use((err, req, res, next) => {
   console.error("🔥 Global Error Caught:", err);
   if (res.headersSent) {
@@ -172,17 +184,17 @@ const startServer = (port) => {
   const handleListenError = (err) => {
     if (err.code === 'EADDRINUSE') {
       console.warn(`Port ${port} is in use, trying ${port + 1}...`);
-      server.close(); // Explicitly close to prevent ERR_SERVER_ALREADY_LISTEN
+      server.close();
       startServer(port + 1);
     } else {
       console.error(err);
     }
   };
 
-  server.once('error', handleListenError); // Use 'once' to avoid listener accumulation
+  server.once('error', handleListenError);
 
   server.listen(port, () => {
-    server.removeListener('error', handleListenError); // Cleanup if successful
+    server.removeListener('error', handleListenError);
     console.log(`Server listening on http://localhost:${port}`);
     console.log(`Environment: ${process.env.NODE_ENV}`);
     console.log(`Database URL: ${process.env.DATABASE_URL ? "Set" : "Missing"}`);
@@ -190,4 +202,8 @@ const startServer = (port) => {
   });
 };
 
-startServer(PORT);
+if (require.main === module) {
+  startServer(PORT);
+}
+
+module.exports = app;

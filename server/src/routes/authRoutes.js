@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 const authController = require("../controllers/authController");
 const authMiddleware = require("../middleware/authMiddleware");
 const prisma = require("../prismaClient");
-// CLIENT_URL should point to your FRONTEND (Vercel) URL
+
 const CLIENT_URL = process.env.CLIENT_URL || process.env.VITE_CLIENT_URL || "http://localhost:5173";
 
 router.post("/register", authController.register);
@@ -56,7 +56,7 @@ router.get(
 );
 
 
-// Dev Route for Testing - Bypasses Google Auth
+
 if (process.env.NODE_ENV !== 'production') {
   router.get("/dev-token", async (req, res) => {
     try {
