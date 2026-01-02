@@ -25,6 +25,10 @@
             }
         },
         {
+            "src": "/socket.io/(.*)",
+            "dest": "backend/index.js"
+        },
+        {
             "src": "/(.*)",
             "dest": "frontend/$1"
         }

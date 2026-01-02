@@ -72,9 +72,16 @@ app.use(passport.initialize());
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || origin.startsWith('http://localhost:')) {
+      // Robust check for production Vercel URLs and Localhost
+      const isAllowed = !origin ||
+        allowedOrigins.includes(origin) ||
+        origin.startsWith('http://localhost:') ||
+        origin.endsWith('.vercel.app');
+
+      if (isAllowed) {
         callback(null, true);
       } else {
+        console.warn(`Socket blocked by CORS: ${origin}`);
         callback(new Error('Not allowed by CORS'));
       }
     },
