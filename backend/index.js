@@ -206,4 +206,5 @@ if (require.main === module) {
   startServer(PORT);
 }
 
-module.exports = app;
+// Export server for production Socket.io support on Vercel
+module.exports = server;
