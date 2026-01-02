@@ -47,47 +47,16 @@ const corsOptions = {
   optionsSuccessStatus: 204
 };
 
-// 1. Preflight/OPTIONS handling (Belt)
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin) || (origin && (origin.endsWith('.vercel.app') || origin.startsWith('http://localhost:')))) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
-  next();
-});
-
-// 2. Regular CORS middleware (Suspenders)
+// 1. Unified CORS middleware
 app.use(cors(corsOptions));
+
+// 2. Body parsing and other middleware
 
 app.use(express.json());
 app.use(passport.initialize());
 
 const io = new Server(server, {
-  cors: {
-    origin: (origin, callback) => {
-      // Robust check for production Vercel URLs and Localhost
-      const isAllowed = !origin ||
-        allowedOrigins.includes(origin) ||
-        origin.startsWith('http://localhost:') ||
-        origin.endsWith('.vercel.app');
-
-      if (isAllowed) {
-        callback(null, true);
-      } else {
-        console.warn(`Socket blocked by CORS: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
+  cors: corsOptions, // Use the exact same CORS options as Express
 });
 
 app.use((req, res, next) => {
