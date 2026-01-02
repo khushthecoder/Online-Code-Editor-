@@ -1,16 +1,16 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const OpenAI = require("openai");
+const OpenAI = require("openai/index.js");
 
 const getAICompletion = async (req, res) => {
     const { prompt, code, language, selection, cursor, contextInstruction } = req.body;
-    
+
 
     const geminiKeys = [
         process.env.GEMINI_API_KEY,
         process.env.GEMINI_API_KEY_2,
         process.env.GEMINI_API_KEY_3,
         process.env.GEMINI_API_KEY_4
-    ].filter(Boolean); 
+    ].filter(Boolean);
 
     const openaiKey = process.env.OPENAI_API_KEY;
 
@@ -74,11 +74,11 @@ const getAICompletion = async (req, res) => {
 
                 const genAI = new GoogleGenerativeAI(key);
                 const model = genAI.getGenerativeModel({ model: modelName });
-                
+
                 const result = await model.generateContent(systemContext);
                 const response = await result.response;
                 const text = response.text();
-                return text; 
+                return text;
             } catch (error) {
 
                 errorLog.push(`Key${keyIndex + 1}(${modelName}): ${error.message}`);
@@ -94,7 +94,7 @@ const getAICompletion = async (req, res) => {
         try {
             console.log(`Using Gemini Key #${i + 1}`);
             const text = await tryGeminiKey(geminiKeys[i], i);
-            return res.json({ text }); 
+            return res.json({ text });
         } catch (error) {
             console.warn(`Gemini Key #${i + 1} exhausted. Switching to next key...`);
         }
@@ -105,14 +105,14 @@ const getAICompletion = async (req, res) => {
         try {
             console.log("All Gemini keys failed. Switching to OpenAI (ChatGPT)...");
             const openai = new OpenAI({ apiKey: openaiKey });
-            
+
             const completion = await openai.chat.completions.create({
                 messages: [{ role: "system", content: systemContext }],
                 model: "gpt-4o",
             });
 
             const text = completion.choices[0].message.content;
-            return res.json({ text }); 
+            return res.json({ text });
 
         } catch (error) {
             console.error("OpenAI failed:", error.message);

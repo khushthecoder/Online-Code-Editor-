@@ -21,16 +21,18 @@ const PORT = process.env.PORT || 5001;
 
 const allowedOrigins = [
   'http://localhost:5173',
+  'https://online-code-editor-orpin.vercel.app',
   process.env.VITE_CLIENT_URL
 ].filter(Boolean);
 
 const corsOptions = {
   origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
 
     const isAllowed = allowedOrigins.includes(origin) ||
       /^http:\/\/localhost:\d+$/.test(origin) ||
-      /^https:\/\/online-code-editor-.*\.vercel\.app$/.test(origin);
+      /\.vercel\.app$/.test(origin);
 
     if (isAllowed) {
       callback(null, true);
@@ -45,8 +47,24 @@ const corsOptions = {
   optionsSuccessStatus: 204
 };
 
+// 1. Preflight/OPTIONS handling (Belt)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin) || (origin && (origin.endsWith('.vercel.app') || origin.startsWith('http://localhost:')))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
+
+// 2. Regular CORS middleware (Suspenders)
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 
 app.use(express.json());
 app.use(passport.initialize());

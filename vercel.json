@@ -2,11 +2,11 @@
     "version": 2,
     "builds": [
         {
-            "src": "server/index.js",
+            "src": "backend/index.js",
             "use": "@vercel/node"
         },
         {
-            "src": "client/package.json",
+            "src": "frontend/package.json",
             "use": "@vercel/static-build",
             "config": {
                 "distDir": "dist"
@@ -16,11 +16,17 @@
     "routes": [
         {
             "src": "/api/(.*)",
-            "dest": "server/index.js"
+            "dest": "backend/index.js",
+            "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept, Origin",
+                "Access-Control-Allow-Credentials": "true"
+            }
         },
         {
             "src": "/(.*)",
-            "dest": "client/$1"
+            "dest": "frontend/$1"
         }
     ]
 }

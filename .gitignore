@@ -1,16 +1,16 @@
 # Node modules
 node_modules/
-client/node_modules/
-server/node_modules/
+frontend/node_modules/
+backend/node_modules/
 
 # Environment files
 .env
-client/.env
-server/.env
+frontend/.env
+backend/.env
 
 # Database files
-server/prisma/dev.db
-server/prisma/dev.db-journal
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
 
 # Log files
 npm-debug.log*
