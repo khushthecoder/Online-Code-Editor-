@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "npx prisma generate --schema=./server/prisma/schema.prisma",
+    "build": "npx prisma generate --schema=./server/prisma/schema.prisma && cd client && npm install && npm run build",
     "deploy-server": "cd server && npx prisma migrate deploy",
     "install-all": "npm install && cd server && npm install && cd ../client && npm install"
   },
