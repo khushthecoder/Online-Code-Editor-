@@ -12,7 +12,7 @@ CompileX is a web-based collaborative code editor that allows multiple users to 
 * **Chat:** Built-in chat functionality for communication within a coding room.
 * **Dark Theme:** Sleek and modern dark user interface.
 
-## Tech Stack �️
+## Tech Stack 
 
 * **Frontend:** React, Vite, CSS, Axios, Socket.IO Client, React Router DOM
 * **Backend:** Node.js, Express.js
