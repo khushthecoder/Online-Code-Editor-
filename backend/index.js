@@ -27,7 +27,6 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
 
     const isAllowed = allowedOrigins.includes(origin) ||
@@ -206,5 +205,5 @@ if (require.main === module) {
   startServer(PORT);
 }
 
-// Export server for production Socket.io support on Vercel
+
 module.exports = server;

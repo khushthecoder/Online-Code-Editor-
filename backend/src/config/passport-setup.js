@@ -7,7 +7,9 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "/api/auth/google/callback",
+      callbackURL: process.env.VITE_API_URL
+        ? `${process.env.VITE_API_URL}/api/auth/google/callback`
+        : "http://localhost:5001/api/auth/google/callback",
       proxy: true,
     },
     async (accessToken, refreshToken, profile, done) => {
@@ -45,8 +47,8 @@ passport.use(
         }
 
         let baseUsername = profile.displayName || email.split("@")[0];
-        baseUsername = baseUsername.replace(/\s+/g, '').toLowerCase(); 
-        const uniqueSuffix = Math.floor(1000 + Math.random() * 9000); 
+        baseUsername = baseUsername.replace(/\s+/g, '').toLowerCase();
+        const uniqueSuffix = Math.floor(1000 + Math.random() * 9000);
         const finalUsername = `${baseUsername}${uniqueSuffix}`;
 
         console.log(`[GoogleAuth] Creating new user: ${email} as ${finalUsername}`);
