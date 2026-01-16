@@ -8,7 +8,7 @@ passport.use(
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL: process.env.VITE_API_URL
-        ? `${process.env.VITE_API_URL}/api/auth/google/callback`
+        ? `${process.env.VITE_API_URL.replace(/['"]+/g, "").replace(/\/+$/, "")}/api/auth/google/callback`
         : "http://localhost:5001/api/auth/google/callback",
       proxy: true,
     },

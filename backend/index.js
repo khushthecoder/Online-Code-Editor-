@@ -14,6 +14,7 @@ const runRoutes = require("./src/routes/runRoutes");
 const aiRoutes = require("./src/routes/aiRoutes");
 
 const app = express();
+app.set("trust proxy", 1);
 const server = http.createServer(app);
 
 const IS_PROD = process.env.NODE_ENV === 'production';
