@@ -22,6 +22,7 @@ const PORT = process.env.PORT || 5001;
 
 const allowedOrigins = [
   'http://localhost:5173',
+  'https://online-code-editor-sepia-one.vercel.app',
   'https://online-code-editor-orpin.vercel.app',
   process.env.VITE_CLIENT_URL
 ].filter(Boolean);
@@ -199,6 +200,20 @@ const startServer = (port) => {
     console.log(`Environment: ${process.env.NODE_ENV}`);
     console.log(`Database URL: ${process.env.DATABASE_URL ? "Set" : "Missing"}`);
     console.log(`Client URL: ${process.env.VITE_CLIENT_URL || "Default"}`);
+
+    // Self-ping to prevent Render free tier from sleeping (pings every 5 min)
+    const RENDER_URL = process.env.RENDER_EXTERNAL_URL || process.env.BACKEND_URL;
+    if (RENDER_URL && IS_PROD) {
+      const pingUrl = RENDER_URL.replace(/\/$/, '') + '/api/ping';
+      const lib = pingUrl.startsWith('https') ? require('https') : require('http');
+      const ping = () => {
+        lib.get(pingUrl, (res) => { res.resume(); })
+          .on('error', (err) => console.error('[KeepAlive]', err.message));
+      };
+      setInterval(ping, 5 * 60 * 1000);
+      setTimeout(ping, 10000); // first ping after 10s (let server settle)
+      console.log(`[KeepAlive] Self-ping every 5 min to ${pingUrl}`);
+    }
   });
 };
 
