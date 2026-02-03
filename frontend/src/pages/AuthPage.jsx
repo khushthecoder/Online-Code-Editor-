@@ -24,6 +24,16 @@ const AuthPage = () => {
         setIsLogin(location.pathname === "/login");
     }, [location.pathname]);
 
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const error = params.get("error");
+        const details = params.get("details");
+        if (error && details) {
+            toast.error(decodeURIComponent(details));
+            window.history.replaceState({}, "", location.pathname);
+        }
+    }, [location.search]);
+
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
