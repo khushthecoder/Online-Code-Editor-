@@ -1,16 +1,15 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../services/api";
 import { v4 as uuidV4 } from "uuid";
 import toast from "react-hot-toast";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-
 const HomePage = () => {
-  const { user, token, logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [roomId, setRoomId] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
 
   const handleJoin = (e) => {
     e.preventDefault();
@@ -18,23 +17,21 @@ const HomePage = () => {
       toast.error("Please enter a Room ID");
       return;
     }
-    navigate(`/editor/${roomId}`);
+    navigate(`/editor/${roomId.trim()}`);
   };
 
   const handleCreate = async () => {
+    if (isCreating) return; // guard against double-submit creating two rooms
+    setIsCreating(true);
     try {
       const newRoomId = uuidV4();
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.post(
-        `${API_URL}/api/room/create`,
-        { roomId: newRoomId },
-        config,
-      );
+      await api.post("/api/room/create", { roomId: newRoomId });
       toast.success("New room created!");
       navigate(`/editor/${newRoomId}`);
     } catch (error) {
       console.error("Error creating room", error);
       toast.error("Failed to create room.");
+      setIsCreating(false);
     }
   };
 
@@ -77,12 +74,14 @@ const HomePage = () => {
             <span>OR</span>
           </div>
 
-          <button onClick={handleCreate} className="btn" style={{
+          <button onClick={handleCreate} disabled={isCreating} className="btn" style={{
             background: "transparent",
             border: "1px solid var(--accent-primary)",
-            color: "var(--accent-primary)"
+            color: "var(--accent-primary)",
+            opacity: isCreating ? 0.6 : 1,
+            cursor: isCreating ? "not-allowed" : "pointer"
           }}>
-            Create New Room
+            {isCreating ? "Creating…" : "Create New Room"}
           </button>
 
           <div className="formFooter">

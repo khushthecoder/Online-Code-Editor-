@@ -5,11 +5,23 @@ const ThemeToggle = () => {
   const { theme, toggleTheme } = useTheme();
   const isLight = theme === 'light';
 
+  const label = isLight ? "Switch to Dark Mode" : "Switch to Light Mode";
+
   return (
     <div
       onClick={toggleTheme}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          toggleTheme();
+        }
+      }}
+      role="switch"
+      aria-checked={isLight}
+      aria-label={label}
+      tabIndex={0}
       className="flex items-center gap-3 cursor-pointer group select-none transition-opacity hover:opacity-100 opacity-80"
-      title={isLight ? "Switch to Dark Mode" : "Switch to Light Mode"}
+      title={label}
       style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
     >
 
@@ -44,7 +56,7 @@ const ThemeToggle = () => {
       </div>
 
 
-      <div style={{ fontSize: '12px', fontWeight: 'bold', color: isLight ? '#374151' : '#9ca3af', display: 'flex', itemsAlign: 'center', gap: '4px', minWidth: '60px' }}>
+      <div style={{ fontSize: '12px', fontWeight: 'bold', color: isLight ? '#374151' : '#9ca3af', display: 'flex', alignItems: 'center', gap: '4px', minWidth: '60px' }}>
         {isLight ? (
           <>
             <span>☀️</span> Light

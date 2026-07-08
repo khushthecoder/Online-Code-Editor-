@@ -26,7 +26,9 @@ class ErrorBoundary extends React.Component {
           }}
         >
           <h1>Something went wrong.</h1>
-          <pre>{this.state.error && this.state.error.toString()}</pre>
+          {!import.meta.env.PROD && (
+            <pre>{this.state.error && this.state.error.toString()}</pre>
+          )}
           <button onClick={() => window.location.reload()}>Refresh Page</button>
         </div>
       );

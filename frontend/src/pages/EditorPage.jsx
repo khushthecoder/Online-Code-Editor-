@@ -1,121 +1,249 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { socket } from "../socket";
 import Editor from "../components/Editor";
 import ThemeToggle from "../components/ThemeToggle";
 import { useAuth } from "../context/AuthContext";
-import axios from "axios";
+import api from "../services/api";
 import AIPromptBar from "../components/AIPromptBar";
 import { toast } from "react-hot-toast";
+import { useRoomSocket } from "../hooks/useRoomSocket";
+import { useYProvider } from "../features/collab/useYProvider";
+import { useProject } from "../features/collab/useProject";
+import { cmLanguageFor, runLanguageFor, pathOf } from "../features/collab/project";
+import FileTree from "../components/FileTree";
+import HistoryPanel from "../components/HistoryPanel";
+import AnalyticsPanel from "../components/AnalyticsPanel";
+import { useSnapshots } from "../features/collab/useSnapshots";
+import { usePresenceRecorder } from "../features/collab/usePresenceAnalytics";
+import { useVoice } from "../features/voice/useVoice";
+import { undoManagerFor } from "../features/collab/undo";
+import "../styles/editor.css";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+// Small crisp icons for the voice-state badge (stroke = currentColor, colored per status).
+const MicIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0 0 14 0" /><line x1="12" y1="18" x2="12" y2="22" />
+  </svg>
+);
+const MicOffIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="3" y1="3" x2="21" y2="21" /><path d="M9 9v3a3 3 0 0 0 5 2.1M15 11V5a3 3 0 0 0-5.6-1.5" /><path d="M5 11a7 7 0 0 0 10.7 6" /><line x1="12" y1="18" x2="12" y2="22" />
+  </svg>
+);
+const SpinnerIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+    <path d="M12 3a9 9 0 1 0 9 9" />
+  </svg>
+);
 
-const ClientAvatar = ({ username }) => {
-  const safeUsername = username || "Guest";
-  const avatarLetter = safeUsername[0].toUpperCase();
+const VOICE_LABEL = { speaking: "speaking", on: "mic on", muted: "muted", connecting: "connecting…" };
+
+const ClientAvatar = ({ username, status }) => {
+  const safe = username || "Guest";
+  const inVoice = Boolean(status);
+  const cls = `ed-avatar${inVoice ? " in-voice" : ""}${status === "speaking" ? " speaking" : ""}`;
+  const badge =
+    status === "muted" ? <MicOffIcon />
+      : status === "connecting" ? <SpinnerIcon />
+        : status ? <MicIcon /> : null; // speaking | on
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '60px', margin: '5px' }} title={safeUsername}>
-      <div style={{ width: '40px', height: '40px', borderRadius: '8px', border: '1px solid #4b5563', backgroundColor: '#21262d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#e5e7eb', fontWeight: 'bold', fontSize: '18px' }}>
-        {avatarLetter}
+    <div className={cls} title={inVoice ? `${safe} · ${VOICE_LABEL[status]}` : safe}>
+      <div className="ring">
+        {safe[0].toUpperCase()}
+        {inVoice && <span className={`voice-badge ${status}`} aria-label={VOICE_LABEL[status]}>{badge}</span>}
       </div>
-      <span style={{ fontSize: '10px', color: '#9ca3af', width: '100%', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {safeUsername.split(" ")[0]}
-      </span>
+      <span className="who">{safe.split(" ")[0]}</span>
     </div>
   );
+};
+
+// Detect the enclosing function/block around the cursor for AI replace operations.
+const detectFunctionRange = (view) => {
+  const state = view.state;
+  const cursor = state.selection.main.head;
+  const doc = state.doc;
+  const currentLine = doc.lineAt(cursor);
+
+  let startLine = currentLine.number;
+  let startIndent = null;
+  let foundStart = false;
+
+  const defRegex = /^\s*(async\s+)?(function|def|class|const\s+\w+\s*=\s*(\(.*\)|async\s*\(.*\))\s*=>|const\s+\w+\s*=\s*(\(.*\)|async\s*\(.*\))\s*{)/;
+
+  for (let i = startLine; i >= 1; i--) {
+    const lineText = doc.line(i).text;
+    if (defRegex.test(lineText)) {
+      startLine = i;
+      const match = lineText.match(/^\s*/);
+      startIndent = match ? match[0].length : 0;
+      foundStart = true;
+      break;
+    }
+  }
+
+  if (!foundStart) return null;
+
+  let endLine = startLine;
+  const lineCount = doc.lines;
+
+  for (let i = startLine + 1; i <= lineCount; i++) {
+    const lineText = doc.line(i).text;
+    if (lineText.trim() === '') continue;
+    const match = lineText.match(/^\s*/);
+    const currentIndent = match ? match[0].length : 0;
+    if (currentIndent <= startIndent) {
+      if (currentIndent === startIndent && lineText.trim().startsWith('}')) {
+        endLine = i;
+      } else {
+        endLine = i - 1;
+      }
+      break;
+    }
+    endLine = i;
+  }
+  return { from: doc.line(startLine).from, to: doc.line(endLine).to };
 };
 
 const EditorPage = () => {
   const { roomId } = useParams();
   const { user, token } = useAuth();
 
-  const [clients, setClients] = useState([]);
-  const [language, setLanguage] = useState("python");
-  const [code, setCode] = useState("");
+  const [activeId, setActiveId] = useState(null);
   const [stdin, setStdin] = useState("");
   const [output, setOutput] = useState("");
   const [isRunning, setIsRunning] = useState(false);
-  const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [editorView, setEditorView] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isAIPanelOpen, setIsAIPanelOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
   const [aiHistory, setAiHistory] = useState([]);
   const [isCopied, setIsCopied] = useState(false);
+  const [lastError, setLastError] = useState("");
 
   const messagesEndRef = useRef(null);
   const historyEndRef = useRef(null);
 
-  const fetchCode = useCallback(
-    async (lang) => {
-      if (!token || !roomId) return;
-      try {
-        const config = { headers: { Authorization: `Bearer ${token}` } };
-        const response = await axios.get(`${API_URL}/api/room/${roomId}`, config);
-        setCode(response.data[lang] || `// Welcome to ${lang}`);
-      } catch (error) {
-        console.error("Failed to fetch code:", error);
-      }
+  // Presence (Socket.IO). Language is now per-file, not a shared dropdown.
+  const { clients } = useRoomSocket({ roomId, user });
+
+  // Real-time voice (WebRTC mesh) — rides the same JWT-authed socket. Speaking /
+  // participant state is keyed by socketId, matching the presence `clients` above.
+  const voice = useVoice({ roomId });
+
+  // Collaborative editing (Yjs CRDT) + the shared multi-file project.
+  // idbSynced/online/pending drive the offline-first sync status; markLocalEdit
+  // flags edits made while disconnected.
+  const { ydoc, awareness, connected, synced, idbSynced, online, pending, markLocalEdit } =
+    useYProvider({ roomId, token, user });
+  const project = useProject(ydoc);
+  const { tree, nodes, treeMap, filesMap } = project;
+
+  // Resolve the active file: keep the user's last file (persisted per room), and
+  // fall back to the first file if it was deleted or none is selected yet.
+  const activeStorageKey = `active-file:${roomId}`;
+  useEffect(() => {
+    const valid = activeId && nodes.some((n) => n.id === activeId && n.type === "file");
+    if (valid) return;
+    const stored = localStorage.getItem(activeStorageKey);
+    const storedOk = stored && nodes.some((n) => n.id === stored && n.type === "file");
+    const firstFile = nodes.find((n) => n.type === "file");
+    const next = storedOk ? stored : firstFile ? firstFile.id : null;
+    if (next !== activeId) setActiveId(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, activeId]);
+
+  const openFile = useCallback((id) => {
+    setActiveId(id);
+    try { localStorage.setItem(`active-file:${roomId}`, id); } catch (e) { /* ignore */ }
+  }, [roomId]);
+
+  const activeNode = activeId ? treeMap.get(activeId) : null;
+  const activeName = activeNode?.name || "";
+  // Ready when the doc is loaded from EITHER the server (synced) or the local
+  // IndexedDB cache (idbSynced) — so editing works offline.
+  const docReady = synced || idbSynced;
+  const yText = activeId && docReady ? filesMap.get(activeId) || null : null;
+  const language = activeNode ? cmLanguageFor(activeName) : "javascript";
+  const runLang = activeNode ? runLanguageFor(activeName) : null;
+  const activePath = activeId ? pathOf(treeMap, activeId) : "";
+
+  // ── Version history (snapshots) ──
+  const { snapshots, busy: snapBusy, saveVersion, restore } = useSnapshots({ ydoc, roomId });
+  // ── Presence analytics (rides on the Awareness protocol) ──
+  // Only the WRITE side lives here (ref-based, no re-renders). The dashboard's
+  // aggregation state lives inside AnalyticsPanel so its frequent updates don't
+  // re-render the whole editor.
+  const record = usePresenceRecorder({ awareness, activeName });
+  const handleActivity = useCallback((a) => {
+    record(a);
+    if (a.docChanged) markLocalEdit(); // offline "pending" flag
+  }, [record, markLocalEdit]);
+
+  // Right-side panels are mutually exclusive.
+  const openHistory = useCallback(() => { setIsHistoryOpen(true); setIsAIPanelOpen(false); setIsAnalyticsOpen(false); }, []);
+  const openAnalytics = useCallback(() => { setIsAnalyticsOpen(true); setIsAIPanelOpen(false); setIsHistoryOpen(false); }, []);
+  const toggleAI = useCallback(() => {
+    setIsAIPanelOpen((o) => { if (!o) { setIsHistoryOpen(false); setIsAnalyticsOpen(false); } return !o; });
+  }, []);
+
+  // ── Offline-first sync status ──
+  let syncClass = "on";
+  let syncText = "Online";
+  if (!idbSynced && !synced) { syncClass = "mid"; syncText = "Loading…"; }
+  else if (!online) { syncClass = "off"; syncText = pending ? "Offline · unsynced" : "Offline"; }
+  else if (!connected) { syncClass = "off"; syncText = "Reconnecting…"; }
+  else if (!synced) { syncClass = "mid"; syncText = "Syncing…"; }
+  else if (pending) { syncClass = "mid"; syncText = "Saving…"; }
+
+  // ── Undo / Redo (Yjs, per active file) ──
+  const undoManager = useMemo(() => (yText ? undoManagerFor(yText) : null), [yText]);
+  const doUndo = useCallback(() => undoManager && undoManager.undo(), [undoManager]);
+  const doRedo = useCallback(() => undoManager && undoManager.redo(), [undoManager]);
+
+  // ── Auto-snapshot: every 5 min if edited & no recent version (limits dupes) ──
+  const dirtyRef = useRef(false);
+  const snapshotsRef = useRef(snapshots);
+  snapshotsRef.current = snapshots;
+  useEffect(() => {
+    const onUpdate = (_u, origin) => { if (origin !== "redis") dirtyRef.current = true; };
+    ydoc.on("update", onUpdate);
+    const iv = setInterval(() => {
+      if (!dirtyRef.current) return;
+      const newest = snapshotsRef.current[0];
+      if (newest && Date.now() - new Date(newest.createdAt).getTime() < 4 * 60 * 1000) return;
+      dirtyRef.current = false;
+      saveVersion("Auto-save").catch(() => {});
+    }, 5 * 60 * 1000);
+    return () => { ydoc.off("update", onUpdate); clearInterval(iv); };
+  }, [ydoc, saveVersion]);
+
+  // Chat now lives in the shared Y.Doc → it persists (survives reload) and syncs.
+  const chatArray = useMemo(() => ydoc.getArray("chat"), [ydoc]);
+  const [messages, setMessages] = useState([]);
+  useEffect(() => {
+    const update = () => setMessages(chatArray.toArray());
+    update();
+    chatArray.observe(update);
+    return () => chatArray.unobserve(update);
+  }, [chatArray]);
+  const sendMessage = useCallback(
+    (text) => {
+      if (!text?.trim() || !user) return;
+      const time = new Date().toLocaleTimeString("en-US", {
+        hour: "2-digit", minute: "2-digit", hour12: true,
+      });
+      chatArray.push([{ username: user.username, text, time }]);
     },
-    [roomId, token],
+    [chatArray, user],
   );
 
-  useEffect(() => {
-    fetchCode(language);
-  }, [language, fetchCode]);
-
-  const [isConnected, setIsConnected] = useState(false);
-
-  useEffect(() => {
-    if (!user || !roomId) return;
-
-    const handleConnect = () => {
-      setIsConnected(true);
-      console.log("Socket connected:", socket.id);
-      socket.emit("join-room", { roomId, username: user.username });
-    };
-
-    const handleDisconnect = () => {
-      setIsConnected(false);
-      console.log("Socket disconnected");
-    };
-
-    const handleConnectError = (err) => {
-      setIsConnected(false);
-      console.error("Socket connection error:", err);
-      toast.error("Connection failed. Retrying...");
-    };
-
-    const handleUserList = (userList) => {
-      setClients(userList);
-    };
-
-    const handleNewMessage = (message) => {
-      setMessages((prev) => [...prev, message]);
-    };
-
-
-    socket.on("connect", handleConnect);
-    socket.on("disconnect", handleDisconnect);
-    socket.on("connect_error", handleConnectError);
-    socket.on("update-user-list", handleUserList);
-    socket.on("new-message", handleNewMessage);
-
-    if (!socket.connected) {
-      socket.connect();
-    } else {
-      handleConnect();
-    }
-
-    return () => {
-      socket.off("connect", handleConnect);
-      socket.off("disconnect", handleDisconnect);
-      socket.off("connect_error", handleConnectError);
-      socket.off("update-user-list", handleUserList);
-      socket.off("new-message", handleNewMessage);
-      socket.disconnect();
-    };
-  }, [roomId, user]);
+  // Read the current buffer from the live editor (falls back to the CRDT text).
+  const getCode = useCallback(
+    () => (editorView ? editorView.state.doc.toString() : yText ? yText.toString() : ""),
+    [editorView, yText],
+  );
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -123,83 +251,8 @@ const EditorPage = () => {
     }
   }, [messages]);
 
-  useEffect(() => {
-    const handleCodeUpdate = ({ language: incomingLang, newCode }) => {
-      if (incomingLang === language) setCode(newCode);
-    };
-    socket.on("code-update", handleCodeUpdate);
-    return () => socket.off("code-update", handleCodeUpdate);
-  }, [language]);
-
-  useEffect(() => {
-    const handleLanguageUpdate = (newLanguage) => {
-      setLanguage(newLanguage);
-    };
-    socket.on("language-update", handleLanguageUpdate);
-    return () => socket.off("language-update", handleLanguageUpdate);
-  }, []);
-
-  const onCodeChange = useCallback(
-    (value) => {
-      setCode(value);
-      socket.emit("code-change", { language, newCode: value });
-    },
-    [language],
-  );
-
-  const handleEditorMount = useCallback((view) => {
-    setEditorView(view);
-  }, []);
-
-  const handleSendMessage = (message) => {
-    socket.emit("send-message", { message });
-  };
-
-  const detectFunctionRange = (view) => {
-    const state = view.state;
-    const cursor = state.selection.main.head;
-    const doc = state.doc;
-    const currentLine = doc.lineAt(cursor);
-
-    let startLine = currentLine.number;
-    let startIndent = null;
-    let foundStart = false;
-
-    const defRegex = /^\s*(async\s+)?(function|def|class|const\s+\w+\s*=\s*(\(.*\)|async\s*\(.*\))\s*=>|const\s+\w+\s*=\s*(\(.*\)|async\s*\(.*\))\s*{)/;
-
-    for (let i = startLine; i >= 1; i--) {
-      const lineText = doc.line(i).text;
-      if (defRegex.test(lineText)) {
-        startLine = i;
-        const match = lineText.match(/^\s*/);
-        startIndent = match ? match[0].length : 0;
-        foundStart = true;
-        break;
-      }
-    }
-
-    if (!foundStart) return null;
-
-    let endLine = startLine;
-    const lineCount = doc.lines;
-
-    for (let i = startLine + 1; i <= lineCount; i++) {
-      const lineText = doc.line(i).text;
-      if (lineText.trim() === '') continue;
-      const match = lineText.match(/^\s*/);
-      const currentIndent = match ? match[0].length : 0;
-      if (currentIndent <= startIndent) {
-        if (currentIndent === startIndent && lineText.trim().startsWith('}')) {
-          endLine = i;
-        } else {
-          endLine = i - 1;
-        }
-        break;
-      }
-      endLine = i;
-    }
-    return { from: doc.line(startLine).from, to: doc.line(endLine).to };
-  };
+  const handleEditorMount = useCallback((view) => setEditorView(view), []);
+  const handleSendMessage = useCallback((message) => sendMessage(message), [sendMessage]);
 
   const handleAIQuery = async (prompt) => {
     if (!editorView || !token) {
@@ -213,7 +266,6 @@ const EditorPage = () => {
     setIsAiLoading(true);
     try {
       const state = editorView.state;
-
       const selection = state.selection.main;
       const cursor = selection.head;
       const codeContent = state.doc.toString();
@@ -246,8 +298,7 @@ const EditorPage = () => {
         contextInstruction
       };
 
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const response = await axios.post(`${API_URL}/api/ai/chat`, payload, config);
+      const response = await api.post(`/api/ai/chat`, payload);
       let aiResponse = response.data.text;
       const codeBlockRegex = /```(?:[\w]*\n)?([\s\S]*?)```/;
       const match = aiResponse.match(codeBlockRegex);
@@ -273,54 +324,52 @@ const EditorPage = () => {
 
   const handleRunCode = async () => {
     if (isRunning) {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      if (abortControllerRef.current) abortControllerRef.current.abort();
       setIsRunning(false);
       setOutput("Execution stopped by user.");
       return;
     }
-
     if (!token) {
       toast.error("You must be logged in to run code");
       setOutput("Not authenticated");
       return;
     }
+    if (!runLang) {
+      setOutput(`${activeName || "This file"} is not executable. Open a .py, .js or .cpp file to Run.`);
+      return;
+    }
 
     setIsRunning(true);
     setOutput("Running code...");
-
     abortControllerRef.current = new AbortController();
 
     try {
-      const config = {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000,
-        signal: abortControllerRef.current.signal
-      };
-
-      const response = await axios.post(
-        `${API_URL}/api/run`,
-        { language, code, stdin },
-        config,
+      const response = await api.post(
+        `/api/run`,
+        { language: runLang, code: getCode(), stdin },
+        { timeout: 20000, signal: abortControllerRef.current.signal },
       );
-
       const data = response.data || {};
 
       if (data.stderr || data.error) {
-        setOutput(data.stderr || data.error);
+        const errText = data.stderr || data.error;
+        setOutput(errText);
+        setLastError(errText);
       } else if (data.stdout !== undefined) {
         setOutput(data.stdout || "No output\n(Did you print to stdout?)");
+        setLastError("");
       } else if (data.output !== undefined) {
         setOutput(data.output || "No output\n(Did you print to stdout?)");
+        setLastError("");
       } else if (typeof data === "string") {
         setOutput(data);
+        setLastError("");
       } else {
         setOutput(JSON.stringify(data, null, 2));
+        setLastError("");
       }
-
     } catch (error) {
-      if (axios.isCancel(error)) {
+      if (api.isCancel?.(error) || error.name === "CanceledError") {
         setOutput("Execution stopped by user.");
       } else {
         console.error("Run Error:", error);
@@ -338,6 +387,49 @@ const EditorPage = () => {
     }
   };
 
+  const applyFix = useCallback((correctedCode) => {
+    // Write through the editor so the CRDT captures it (or the CRDT text directly).
+    if (editorView) {
+      editorView.dispatch({
+        changes: { from: 0, to: editorView.state.doc.length, insert: correctedCode },
+      });
+    } else if (yText) {
+      ydoc.transact(() => {
+        yText.delete(0, yText.length);
+        yText.insert(0, correctedCode);
+      });
+    }
+    setLastError("");
+    toast.success("Fix applied!");
+  }, [editorView, ydoc, yText]);
+
+  const handleExplainError = async () => {
+    if (!lastError || !token) return;
+    setIsAIPanelOpen(true);
+    setAiHistory(prev => [...prev, { role: 'user', text: 'Explain & fix this error' }]);
+    setIsAiLoading(true);
+    setTimeout(() => historyEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    try {
+      const { data } = await api.post('/api/ai/explain-error', {
+        code: getCode(),
+        language,
+        error: lastError,
+      });
+      setAiHistory(prev => [...prev, {
+        role: 'ai',
+        text: `${data.diagnosis}\n\nFix: ${data.fix}`,
+        fix: data.correctedCode,
+      }]);
+    } catch (error) {
+      const msg = error.response?.data?.error || "Could not explain the error.";
+      setAiHistory(prev => [...prev, { role: 'ai', text: `Error: ${msg}` }]);
+      toast.error("AI explain failed");
+    } finally {
+      setIsAiLoading(false);
+      setTimeout(() => historyEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    }
+  };
+
   const handleCopyRoomId = async () => {
     try {
       await navigator.clipboard.writeText(roomId);
@@ -349,61 +441,98 @@ const EditorPage = () => {
     }
   };
 
-  if (!user) return <div>Loading...</div>;
+  if (!user) return <div className="ed-page" style={{ alignItems: 'center', justifyContent: 'center' }}>Loading…</div>;
 
-  const styles = {
-    page: { display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', backgroundColor: '#0d1117', color: '#d1d5db', fontFamily: 'sans-serif' },
-
-    leftCol: { display: 'flex', flexDirection: 'column', width: '280px', minWidth: '240px', maxWidth: '500px', resize: 'horizontal', overflow: 'hidden', borderRight: '1px solid #30363d', backgroundColor: '#161b22', flexShrink: 0 },
-    columnHeader: { height: '48px', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', padding: '0 16px', backgroundColor: '#161b22', flexShrink: 0 },
-    headerTitle: { fontSize: '14px', fontWeight: 'bold', color: '#e5e7eb', textTransform: 'uppercase', letterSpacing: '0.05em' },
-
-    usersBody: { padding: '16px', display: 'flex', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid #30363d', overflowY: 'auto', maxHeight: '30%', flexShrink: 0 },
-    chatBody: { flexGrow: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#0d1117' },
-
-    footer: { padding: '12px', borderTop: '1px solid #30363d', backgroundColor: '#161b22', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 },
-    input: { width: '100%', backgroundColor: '#0d1117', border: '1px solid #30363d', borderRadius: '4px', padding: '6px 8px', fontSize: '12px', color: '#d1d5db', outline: 'none' },
-
-    centerCol: { flexGrow: 1, display: 'flex', flexDirection: 'column', minWidth: 0, borderRight: '1px solid #30363d' },
-    centerHeader: { height: '48px', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', backgroundColor: '#161b22', flexShrink: 0 },
-    editorContainer: { flexGrow: 1, position: 'relative', overflow: 'hidden' },
-
-    bottomPanel: { height: '220px', borderTop: '1px solid #30363d', display: 'flex', flexShrink: 0, backgroundColor: '#0d1117' },
-    splitCol: { width: '50%', display: 'flex', flexDirection: 'column', borderRight: '1px solid #30363d' },
-    panelTitle: { padding: '6px 12px', borderBottom: '1px solid #30363d', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', color: '#6b7280', backgroundColor: '#161b22' },
-    panelContent: { flexGrow: 1, backgroundColor: '#0d1117', color: '#d1d5db', padding: '12px', fontSize: '14px', fontFamily: 'monospace', resize: 'none', outline: 'none', border: 'none', overflow: 'auto' },
-
-    rightCol: { display: 'flex', flexDirection: 'column', backgroundColor: '#161b22', flexShrink: 0, transition: 'width 0.3s', overflow: 'hidden', borderLeft: '1px solid #30363d' },
-
-    btnRun: { display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 16px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', border: 'none', cursor: 'pointer', backgroundColor: '#16a34a', color: 'white' },
-    btnAI: { display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', border: '1px solid #30363d', cursor: 'pointer' },
-  };
+  const outputIsError = Boolean(lastError) || output.startsWith('Error');
 
   return (
-    <div style={styles.page}>
+    <div className="ed-page">
 
-      <div style={styles.leftCol}>
-        <div style={styles.columnHeader}>
-          <span style={{ ...styles.headerTitle, color: isConnected ? '#4ade80' : '#f87171' }}>
-            {isConnected ? 'Connected' : 'Disconnected'}
+      {/* ── Sidebar ── */}
+      <aside className="ed-sidebar">
+        <div className="ed-col-header">
+          <span className={`ed-status ${syncClass}`} title="Sync status">
+            <span className="dot" />
+            {syncText}
           </span>
         </div>
 
-        <div style={styles.usersBody}>
+        <div className="ed-voice-bar">
+          {!voice.inVoice ? (
+            <button
+              className="ed-voice-join"
+              onClick={voice.join}
+              disabled={voice.connecting}
+              title="Talk with everyone in this room"
+            >
+              🎙 {voice.connecting ? "Joining…" : "Join Voice"}
+            </button>
+          ) : (
+            <>
+              <button
+                className={`ed-voice-ctl ${voice.muted ? "muted" : ""} ${voice.pttMode ? "ptt" : ""}`}
+                onClick={() => { if (!voice.pttMode) voice.toggleMute(); }}
+                onPointerDown={voice.pttDown}
+                onPointerUp={voice.pttUp}
+                onPointerLeave={voice.pttUp}
+                title={voice.pttMode ? "Hold to talk" : voice.muted ? "Unmute" : "Mute"}
+              >
+                {voice.muted ? "🔇" : "🎙"}
+              </button>
+              <button
+                className={`ed-voice-ctl ${voice.pttMode ? "on" : ""}`}
+                onClick={voice.togglePtt}
+                title="Push-to-talk — hold ` or the mic button to speak"
+              >
+                PTT
+              </button>
+              {voice.devices.length > 1 && (
+                <select
+                  className="ed-voice-dev"
+                  value={voice.deviceId}
+                  onChange={(e) => voice.changeDevice(e.target.value)}
+                  title="Microphone"
+                >
+                  <option value="">Default mic</option>
+                  {voice.devices.map((d) => (
+                    <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
+                  ))}
+                </select>
+              )}
+              <span className="ed-voice-count">{voice.participants.size} in voice</span>
+              <button className="ed-voice-leave" onClick={voice.leave} title="Leave voice">
+                Leave
+              </button>
+            </>
+          )}
+          {voice.mutedTalking && (
+            <span className="ed-voice-nudge">🔇 You're muted — click the mic to talk</span>
+          )}
+          {voice.error && (
+            <span className="ed-voice-err" onClick={voice.dismissError} role="button" title="Dismiss">
+              {voice.error}
+            </span>
+          )}
+        </div>
+
+        <div className="ed-users">
           {clients.map((client) => (
-            <ClientAvatar key={client.socketId} username={client.username} />
+            <ClientAvatar
+              key={client.socketId}
+              username={client.username}
+              status={voice.statuses.get(client.socketId) || null}
+            />
           ))}
         </div>
 
-        <div style={styles.chatBody}>
-          {messages.length === 0 && <div style={{ textAlign: 'center', color: '#4b5563', fontSize: '12px', marginTop: '16px' }}>Start chatting...</div>}
+        <div className="ed-chat">
+          {messages.length === 0 && <div className="ed-chat-empty">No messages yet — say hi 👋</div>}
           {messages.map((msg, index) => {
             const isMe = msg.username === user.username;
             return (
-              <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                <div style={{ padding: '6px 8px', borderRadius: '4px', maxWidth: '90%', fontSize: '12px', backgroundColor: isMe ? 'rgba(30, 64, 175, 0.4)' : '#21262d', color: isMe ? '#dbeafe' : '#d1d5db', border: isMe ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid #30363d' }}>
-                  <span style={{ fontWeight: 'bold', marginRight: '4px', opacity: 0.6, fontSize: '10px' }}>{msg.username}:</span>
-                  {msg.text}
+              <div key={index} className={`ed-msg ${isMe ? 'mine' : ''}`}>
+                <div className="ed-bubble">
+                  <span className="from">{msg.username}</span>{msg.text}
                 </div>
               </div>
             );
@@ -411,147 +540,189 @@ const EditorPage = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        <div style={styles.footer}>
+        <div className="ed-footer">
           <form onSubmit={(e) => { e.preventDefault(); if (chatInput.trim()) { handleSendMessage(chatInput); setChatInput(""); } }}>
-            <input style={styles.input} placeholder="Type message..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} />
+            <input className="ed-input" placeholder="Type a message…" value={chatInput} onChange={(e) => setChatInput(e.target.value)} />
           </form>
+
           <div
+            className={`ed-roomid ${isCopied ? 'copied' : ''}`}
             onClick={handleCopyRoomId}
-            className="group"
-            style={{
-              ...styles.input,
-              cursor: 'pointer',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              transition: 'background-color 0.2s',
-              position: 'relative',
-              overflow: 'hidden'
-            }}
-            title="Click to Copy Room ID"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCopyRoomId(); } }}
+            title="Click to copy Room ID"
           >
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', overflow: 'hidden' }}>
-              <span style={{ fontWeight: 'bold', color: '#6b7280', fontSize: '11px', textTransform: 'uppercase' }}>ID:</span>
-              <span style={{ fontFamily: 'monospace', color: isCopied ? '#4ade80' : '#60a5fa', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 'bold', fontSize: '12px' }}>
-                {roomId}
-              </span>
+              <span className="lbl">Room</span>
+              <span className="val">{roomId}</span>
             </div>
-
-            <div style={{
-              color: isCopied ? '#4ade80' : '#6b7280',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: isCopied ? 'rgba(74, 222, 128, 0.1)' : 'transparent',
-              padding: '4px',
-              borderRadius: '4px',
-              transition: 'all 0.2s'
-            }}>
+            <span className="copy-ico">
               {isCopied ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
               ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+              )}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '2px' }}><ThemeToggle /></div>
+        </div>
+      </aside>
+
+      {/* ── File explorer ── */}
+      <aside className="ed-explorer">
+        <FileTree
+          tree={tree}
+          activeId={activeId}
+          onOpen={openFile}
+          onCreateFile={(parentId, name) => project.createFile(parentId, name)}
+          onCreateFolder={(parentId, name) => project.createFolder(parentId, name)}
+          onRename={(id, name) => project.rename(id, name)}
+          onMove={(id, parentId) => project.move(id, parentId)}
+          onDelete={(id) => project.remove(id)}
+        />
+      </aside>
+
+      {/* ── Center: toolbar + editor + console ── */}
+      <main className="ed-center">
+        <div className="ed-toolbar">
+          <div className="ed-breadcrumb" title={activePath}>
+            {activeName ? activePath : <span className="ed-breadcrumb-empty">No file open</span>}
+          </div>
+
+          <div className="ed-toolbar-actions">
+            <button className="ed-icon-btn" onClick={doUndo} disabled={!yText} title="Undo (⌘/Ctrl+Z)">↶</button>
+            <button className="ed-icon-btn" onClick={doRedo} disabled={!yText} title="Redo (⌘/Ctrl+Y)">↷</button>
+            <button
+              className={`ed-btn ed-btn-run ${isRunning ? 'running' : ''}`}
+              onClick={handleRunCode}
+              disabled={isRunning || !runLang}
+              title={runLang ? "Run" : "This file type can't be executed"}
+            >
+              {isRunning ? 'Running…' : '▶ Run'}
+            </button>
+            <button
+              className={`ed-btn ed-btn-ai ${isHistoryOpen ? 'on' : ''}`}
+              onClick={() => (isHistoryOpen ? setIsHistoryOpen(false) : openHistory())}
+              title="Version history"
+            >
+              🕘
+            </button>
+            <button
+              className={`ed-btn ed-btn-ai ${isAnalyticsOpen ? 'on' : ''}`}
+              onClick={() => (isAnalyticsOpen ? setIsAnalyticsOpen(false) : openAnalytics())}
+              title="Collaboration analytics"
+            >
+              📊
+            </button>
+            <button className={`ed-btn ed-btn-ai ${isAIPanelOpen ? 'on' : ''}`} onClick={toggleAI}>
+              ✦ AI
+            </button>
+          </div>
+        </div>
+
+        <div className="ed-editor-wrap">
+          {docReady && awareness && yText ? (
+            <Editor
+              key={activeId}
+              language={language}
+              yText={yText}
+              awareness={awareness}
+              onEditorMount={handleEditorMount}
+              onActivity={handleActivity}
+            />
+          ) : (
+            <div className="ed-editor-empty">
+              {!docReady
+                ? connected
+                  ? "Syncing project…"
+                  : "Loading local copy…"
+                : "No file open — create or select a file in the Explorer."}
+            </div>
+          )}
+        </div>
+
+        <div className="ed-console">
+          <div className="ed-console-col">
+            <div className="ed-panel-head"><span>Input · stdin</span></div>
+            <textarea className="ed-panel-body" placeholder="Type input for your program…" value={stdin} onChange={(e) => setStdin(e.target.value)} />
+          </div>
+          <div className="ed-console-col">
+            <div className="ed-panel-head">
+              <span>Output</span>
+              {lastError && (
+                <button className="ed-fix-btn" onClick={handleExplainError} disabled={isAiLoading}>
+                  ✦ Explain &amp; Fix
+                </button>
               )}
             </div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '4px' }}><ThemeToggle /></div>
-        </div>
-      </div>
-
-      <div style={styles.centerCol}>
-        <div style={styles.centerHeader}>
-          <div style={{ position: 'relative' }}>
-            <select
-              value={language}
-              onChange={(e) => { setLanguage(e.target.value); socket.emit("language-change", { language: e.target.value }); }}
-              style={{ appearance: 'none', backgroundColor: '#0d1117', border: '1px solid #30363d', color: '#e5e7eb', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', padding: '6px 32px 6px 12px', outline: 'none', cursor: 'pointer' }}
-            >
-              <option value="python">Python</option>
-              <option value="javascript">JavaScript</option>
-              <option value="cpp">C++</option>
-            </select>
-            <div style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#9ca3af', fontSize: '10px' }}>▼</div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button onClick={handleRunCode} disabled={isRunning} style={{ ...styles.btnRun, backgroundColor: isRunning ? '#374151' : '#16a34a', color: isRunning ? '#9ca3af' : 'white', cursor: isRunning ? 'not-allowed' : 'pointer' }}>
-              {isRunning ? 'Running' : 'Run'}
-            </button>
-
-            <button onClick={() => setIsAIPanelOpen(!isAIPanelOpen)} style={{ ...styles.btnAI, backgroundColor: isAIPanelOpen ? '#2563eb' : '#21262d', color: isAIPanelOpen ? 'white' : '#9ca3af', borderColor: isAIPanelOpen ? '#2563eb' : '#30363d' }}>
-              AI
-            </button>
-          </div>
-        </div>
-
-        <div style={styles.editorContainer}>
-          <Editor language={language} value={code} onChange={onCodeChange} onEditorMount={handleEditorMount} />
-        </div>
-
-        <div style={styles.bottomPanel}>
-          <div style={styles.splitCol}>
-            <div style={styles.panelTitle}>Input (Stdin)</div>
-            <textarea style={styles.panelContent} placeholder="Type input..." value={stdin} onChange={(e) => setStdin(e.target.value)} />
-          </div>
-          <div style={{ ...styles.splitCol, borderRight: 'none' }}>
-            <div style={styles.panelTitle}>Output</div>
-            <pre style={{ ...styles.panelContent, whiteSpace: 'pre-wrap', color: output.startsWith('Error') ? '#f87171' : '#d1d5db' }}>
-              {output || <span style={{ color: '#4b5563', fontStyle: 'italic' }}>Run code to see output...</span>}
+            <pre className={`ed-panel-body ${outputIsError ? 'is-error' : ''}`}>
+              {output || <span className="ed-output-empty">Run your code to see output…</span>}
             </pre>
           </div>
         </div>
-      </div>
+      </main>
 
-      <div style={{ ...styles.rightCol, width: isAIPanelOpen ? '320px' : '0px' }}>
-        <div style={{ ...styles.columnHeader, justifyContent: 'space-between' }}>
-          <span style={styles.headerTitle}>AI Copilot</span>
-          <button onClick={() => setIsAIPanelOpen(false)} style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: '16px', cursor: 'pointer' }}>✕</button>
+      {/* ── AI panel ── */}
+      <aside className="ed-ai-panel" style={{ width: isAIPanelOpen ? '340px' : '0px' }}>
+        <div className="ed-col-header between">
+          <span className="ed-col-title">✦ AI Copilot</span>
+          <button className="ed-ai-close" onClick={() => setIsAIPanelOpen(false)} aria-label="Close AI panel">✕</button>
         </div>
 
-        <div style={{ flexGrow: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="ed-ai-body">
           {aiHistory.length === 0 && (
-            <div style={{ backgroundColor: '#0d1117', border: '1px solid #30363d', borderRadius: '4px', padding: '12px', color: '#9ca3af', fontSize: '12px', lineHeight: '1.5' }}>
-              <p style={{ marginBottom: '8px', color: '#e5e7eb', fontWeight: 'bold' }}>Instructions:</p>
-              <ul style={{ paddingLeft: '16px', margin: 0 }}>
+            <div className="ed-ai-hint">
+              <b>How to use</b>
+              <ul>
                 <li>Select code to <strong>replace</strong> or <strong>refactor</strong>.</li>
-                <li>Place cursor to <strong>insert</strong> new code.</li>
+                <li>Place your cursor to <strong>insert</strong> new code.</li>
+                <li>Hit a run error → <strong>Explain &amp; Fix</strong>.</li>
               </ul>
             </div>
           )}
 
           {aiHistory.map((item, index) => (
-            <div key={index} style={{
-              alignSelf: item.role === 'user' ? 'flex-end' : 'flex-start',
-              backgroundColor: item.role === 'user' ? '#1f6feb' : '#21262d',
-              color: '#e5e7eb',
-              padding: '8px 12px',
-              borderRadius: '6px',
-              fontSize: '12px',
-              maxWidth: '90%',
-              border: '1px solid #30363d',
-              lineHeight: '1.4'
-            }}>
+            <div key={index} className={`ed-ai-msg ${item.role === 'user' ? 'user' : 'ai'}`}>
               {item.role === 'user' ? (
                 <span>{item.text}</span>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ color: '#3fb950' }}>✔</span> {item.text}
+              ) : item.fix !== undefined ? (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ whiteSpace: 'pre-wrap' }}>{item.text}</span>
+                  <button className="ed-ai-apply" onClick={() => applyFix(item.fix)}>✓ Apply Fix</button>
                 </div>
+              ) : (
+                <span><span className="ok">✔</span> {item.text}</span>
               )}
             </div>
           ))}
           <div ref={historyEndRef} />
         </div>
 
-        <div style={{ padding: '0', borderTop: '1px solid #30363d' }}>
+        <div style={{ borderTop: '1px solid var(--ed-border)' }}>
           <AIPromptBar onSubmit={handleAIQuery} loading={isAiLoading} />
         </div>
-      </div>
+      </aside>
+
+      {/* ── Version history panel ── */}
+      <HistoryPanel
+        open={isHistoryOpen}
+        snapshots={snapshots}
+        busy={snapBusy}
+        onSave={(label) => saveVersion(label)}
+        onRestore={(id) => restore(id)}
+        onClose={() => setIsHistoryOpen(false)}
+      />
+
+      {/* ── Collaboration analytics panel ── */}
+      {/* Always mounted (width toggles with `open`) so timeline history persists and
+          its aggregation re-renders stay isolated to this subtree. */}
+      <AnalyticsPanel
+        open={isAnalyticsOpen}
+        awareness={awareness}
+        onClose={() => setIsAnalyticsOpen(false)}
+      />
 
     </div>
   );
