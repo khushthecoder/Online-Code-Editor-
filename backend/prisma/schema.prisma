@@ -11,7 +11,12 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Runtime/pooled connection (e.g. Supabase transaction pooler on :6543).
+  url       = env("DATABASE_URL")
+  // Direct (session) connection used ONLY by `prisma migrate deploy`. On a plain
+  // Postgres, set DIRECT_URL to the same value as DATABASE_URL. Prisma resolves it
+  // lazily — `prisma generate` and the runtime client don't require it to be set.
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -41,4 +46,26 @@ model Code {
   room      Room     @relation(fields: [roomId], references: [id])
   roomId    String   @unique
   updatedAt DateTime @updatedAt
+}
+
+// Binary Yjs (CRDT) document state, one per room. Source of truth for live
+// collaborative editing. Additive — the legacy Code table is left intact and
+// used only to seed a room's CRDT doc the first time it loads.
+model CollabDoc {
+  roomId    String   @id
+  state     Bytes
+  updatedAt DateTime @updatedAt
+}
+
+// Version history — a named checkpoint of a room's full CRDT state, with who
+// saved it and when. Restore applies this state back onto the live document.
+model Snapshot {
+  id        String   @id @default(cuid())
+  roomId    String
+  label     String?
+  author    String?
+  state     Bytes
+  createdAt DateTime @default(now())
+
+  @@index([roomId, createdAt])
 }
