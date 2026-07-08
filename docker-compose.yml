@@ -1,0 +1,124 @@
+# Horizontally-scaled local stack: Postgres + Redis + TWO backend instances behind
+# an nginx load balancer. Users are round-robined across instances and stay synced
+# via Redis (Yjs pub/sub + Socket.IO adapter) — no sticky sessions required.
+#
+#   docker compose up --build          # then hit http://localhost:8080
+#   docker compose up --scale backend=4 backend   # (if you templatize it further)
+#
+# Run the frontend with `cd frontend && npm run dev` pointing VITE_*_URL at :8080.
+
+x-backend: &backend
+  build: ./backend
+  restart: unless-stopped
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  environment: &backend-env
+    DATABASE_URL: postgresql://compilex:compilex@db:5432/compilex?schema=public
+    # Local Postgres is a direct connection, so DIRECT_URL == DATABASE_URL. The
+    # Dockerfile runs `prisma migrate deploy` on start, which requires directUrl.
+    DIRECT_URL: postgresql://compilex:compilex@db:5432/compilex?schema=public
+    REDIS_URL: redis://redis:6379            # enables horizontal scaling
+    NODE_ENV: production
+    JWT_SECRET: ${JWT_SECRET:-change-me-openssl-rand-hex-32-000000000000}
+    CLIENT_ORIGINS: ${CLIENT_ORIGINS:-http://localhost:5173}
+    EXEC_PROVIDER: ${EXEC_PROVIDER:-judge0}
+    RAPIDAPI_KEY: ${RAPIDAPI_KEY:-}
+    GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+    GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    # Voice (WebRTC): TURN relay for NAT traversal. Leave TURN_* unset to run
+    # STUN-only (fine on a LAN). The secret must match turnserver.conf.
+    VOICE_MAX_PEERS: ${VOICE_MAX_PEERS:-6}
+    TURN_URLS: ${TURN_URLS:-}
+    TURN_SECRET: ${TURN_SECRET:-}
+    TURN_TTL_SECONDS: ${TURN_TTL_SECONDS:-3600}
+    # Voice SFU (LiveKit). Set all three to switch voice from mesh → SFU (large
+    # rooms, active-speaker). Unset = mesh mode. Secret must match livekit.yaml.
+    LIVEKIT_URL: ${LIVEKIT_URL:-}
+    LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+    LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+  healthcheck:
+    test: ["CMD-SHELL", "wget -qO- http://localhost:5001/healthz || exit 1"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: compilex
+      POSTGRES_PASSWORD: compilex
+      POSTGRES_DB: compilex
+    volumes:
+      - compilex_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U compilex"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - compilex_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend1:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      PORT: "5001"
+
+  backend2:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      PORT: "5001"
+
+  lb:
+    image: nginx:1.27-alpine
+    depends_on: [backend1, backend2]
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8080:80"     # single entrypoint for browsers → http://localhost:8080
+
+  # TURN/STUN relay for the WebRTC voice mesh. Only peers behind restrictive NATs
+  # need it; on a LAN, STUN-only works without this service. To activate: set
+  # static-auth-secret in turnserver.conf, then start the backend with a matching
+  # TURN_SECRET and TURN_URLS=turn:<PUBLIC_HOST>:3478?transport=udp,...tcp
+  # Uses host networking so the wide relay UDP port range is reachable.
+  coturn:
+    image: coturn/coturn:4.6-alpine
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+
+  # LiveKit SFU (P2). Start it AND set the backend LIVEKIT_* env to switch voice
+  # from mesh → SFU. Host networking so the RTC UDP media port range is reachable.
+  #   LIVEKIT_URL=ws://localhost:7880  LIVEKIT_API_KEY=devkey
+  #   LIVEKIT_API_SECRET=devsecret_change_me_min_32_chars_long_00  (matches livekit.yaml)
+  livekit:
+    image: livekit/livekit-server:v1.8
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    command: ["--config", "/etc/livekit.yaml"]
+
+volumes:
+  compilex_pgdata:
+  compilex_redisdata:

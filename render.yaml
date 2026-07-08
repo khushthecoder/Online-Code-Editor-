@@ -1,0 +1,50 @@
+# Render blueprint — horizontally-scaled CompileX backend + managed Redis.
+# The backend MUST run on a persistent host (not serverless) because it holds
+# long-lived WebSocket connections. Render load-balances across instances; Redis
+# keeps every instance's room state in sync (no sticky sessions needed).
+services:
+  - type: web
+    name: compilex-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: standard          # needs RAM for in-memory Y.Docs; scale the plan as needed
+    numInstances: 2         # ← horizontal scaling; raise for more concurrency
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: compilex-redis
+          property: connectionString   # injected (includes auth)
+      - key: DATABASE_URL
+        sync: false          # set in dashboard (managed Postgres / Supabase transaction pooler)
+      - key: DIRECT_URL
+        sync: false          # direct (non-pooled/session) DB URL — used only by `prisma migrate deploy`.
+                             # On a plain/managed Postgres set it to the SAME value as DATABASE_URL.
+      - key: JWT_SECRET
+        generateValue: true  # strong secret, shared across all instances
+      - key: CLIENT_URL
+        sync: false          # OAuth redirect target — the frontend origin, e.g. https://your-frontend.vercel.app
+      - key: CLIENT_ORIGINS
+        sync: false          # CORS allowlist, e.g. https://your-frontend.vercel.app
+      - key: EXEC_PROVIDER
+        value: judge0
+      - key: RAPIDAPI_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+  - type: redis
+    name: compilex-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []          # internal only — reachable solely by the backend services

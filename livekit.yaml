@@ -1,0 +1,16 @@
+# LiveKit SFU server config (self-host, P2). The backend mints room tokens signed
+# with the key/secret below (see src/services/voice/livekit.js) — they MUST match
+# the backend's LIVEKIT_API_KEY / LIVEKIT_API_SECRET.
+#
+# Local dev: the client connects to ws://localhost:7880. For a real deployment set
+# use_external_ip: true (or an explicit node_ip) and open the RTC UDP port range.
+port: 7880
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: false
+
+# API key -> secret. Rotate for production; keep in sync with the backend env.
+keys:
+  devkey: devsecret_change_me_min_32_chars_long_00
