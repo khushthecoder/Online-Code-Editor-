@@ -35,7 +35,6 @@ if (!process.env.DATABASE_URL) {
 }
 
 const app = express();
-app.set("trust proxy", 1);
 const server = http.createServer(app);
 
 const IS_PROD = process.env.NODE_ENV === "production";
@@ -378,6 +377,20 @@ const startServer = (port) => {
     console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
     console.log(`Database URL: ${process.env.DATABASE_URL ? "Set" : "Missing"}`);
     console.log(`Allowed origins: ${allowedOrigins.join(", ")}`);
+
+    // Keep-alive: ping ourselves so Render's free tier doesn't sleep the service
+    // after inactivity (which would otherwise drop long-lived WebSocket/collab
+    // connections). Only in production and only when a public URL is known.
+    const renderUrl = process.env.RENDER_EXTERNAL_URL || process.env.BACKEND_URL;
+    if (IS_PROD && renderUrl) {
+      const pingUrl = `${renderUrl.replace(/\/+$/, "")}/api/ping`;
+      const client = pingUrl.startsWith("https") ? require("https") : require("http");
+      const ping = () =>
+        client.get(pingUrl, (res) => res.resume()).on("error", (err) => console.error("[keep-alive]", err.message));
+      setInterval(ping, 5 * 60 * 1000).unref(); // don't hold the event loop open on shutdown
+      setTimeout(ping, 10000); // first ping after the server settles
+      console.log(`[keep-alive] self-ping every 5 min → ${pingUrl}`);
+    }
   });
 };
 
