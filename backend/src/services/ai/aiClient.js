@@ -2,13 +2,15 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const OpenAI = require("openai/index.js");
 
 const AI_TIMEOUT_MS = 20000;
+const MAX_OUTPUT_TOKENS = 2048; // cap response size (cost + latency guard)
 
-const GEMINI_MODELS = [
-  "gemini-2.0-flash-lite-preview-02-05",
-  "gemini-2.0-flash",
-  "gemini-flash-latest",
-  "gemini-pro-latest",
-];
+// Groq — free, fast, OpenAI-compatible. Primary provider when GROQ_API_KEY is set.
+const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+
+// Gemini fallback — only free-tier-eligible flash models (preview/pro models are
+// retired or have no free tier).
+const GEMINI_MODELS = ["gemini-2.0-flash", "gemini-flash-latest"];
 
 // Reject if a provider call hangs, so a slow upstream can't tie up the request.
 const withTimeout = (promise, ms = AI_TIMEOUT_MS) =>
@@ -27,13 +29,27 @@ const geminiKeys = () =>
     process.env.GEMINI_API_KEY_4,
   ].filter(Boolean);
 
+// One OpenAI-compatible chat call — used for both Groq and OpenAI (Groq just points
+// the OpenAI SDK at its own base URL).
+async function chatCompletion({ apiKey, baseURL, model }, prompt) {
+  const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}), timeout: AI_TIMEOUT_MS });
+  const completion = await withTimeout(
+    client.chat.completions.create({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: MAX_OUTPUT_TOKENS,
+    }),
+  );
+  return completion.choices[0].message.content;
+}
+
 // Single entry point for text generation with automatic failover:
-// Gemini keys (model cascade) → OpenAI. Throws AiUnavailableError if all fail.
-// (Structured so another provider can be slotted in as the primary.)
+// Groq (free) → Gemini (model cascade) → OpenAI. Throws if all fail.
 async function generate(prompt) {
+  const groqKey = process.env.GROQ_API_KEY;
   const keys = geminiKeys();
   const openaiKey = process.env.OPENAI_API_KEY;
-  if (keys.length === 0 && !openaiKey) {
+  if (!groqKey && keys.length === 0 && !openaiKey) {
     const err = new Error("No AI provider configured");
     err.code = "NO_PROVIDER";
     throw err;
@@ -41,6 +57,16 @@ async function generate(prompt) {
 
   const errorLog = [];
 
+  // 1) Groq — free, fast, primary.
+  if (groqKey) {
+    try {
+      return await chatCompletion({ apiKey: groqKey, baseURL: GROQ_BASE_URL, model: GROQ_MODEL }, prompt);
+    } catch (error) {
+      errorLog.push(`groq/${GROQ_MODEL}: ${error.message}`);
+    }
+  }
+
+  // 2) Gemini — fallback across keys/models.
   for (let i = 0; i < keys.length; i++) {
     for (const modelName of GEMINI_MODELS) {
       try {
@@ -54,16 +80,10 @@ async function generate(prompt) {
     }
   }
 
+  // 3) OpenAI — last-resort fallback (mini model + token cap to bound cost).
   if (openaiKey) {
     try {
-      const openai = new OpenAI({ apiKey: openaiKey, timeout: AI_TIMEOUT_MS });
-      const completion = await withTimeout(
-        openai.chat.completions.create({
-          messages: [{ role: "system", content: prompt }],
-          model: "gpt-4o",
-        }),
-      );
-      return completion.choices[0].message.content;
+      return await chatCompletion({ apiKey: openaiKey, model: "gpt-4o-mini" }, prompt);
     } catch (error) {
       errorLog.push(`openai: ${error.message}`);
     }
