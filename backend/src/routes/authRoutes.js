@@ -4,12 +4,13 @@ const passport = require("passport");
 const jwt = require("jsonwebtoken");
 const authController = require("../controllers/authController");
 const authMiddleware = require("../middleware/authMiddleware");
+const { authLimiter } = require("../middleware/rateLimiters");
 const prisma = require("../prismaClient");
 
 const CLIENT_URL = process.env.CLIENT_URL || process.env.VITE_CLIENT_URL || "http://localhost:5173";
 
-router.post("/register", authController.register);
-router.post("/login", authController.login);
+router.post("/register", authLimiter, authController.register);
+router.post("/login", authLimiter, authController.login);
 router.get("/me", authMiddleware, authController.getMe);
 router.get(
   "/google",
@@ -24,8 +25,8 @@ router.get(
   (req, res, next) => {
     passport.authenticate("google", { session: false }, (err, user, info) => {
       if (err) {
-        console.error("🔥 [AuthRoute] Passport Callback Error:", err);
-        return res.redirect(`${CLIENT_URL}/login?error=server_error&details=${encodeURIComponent(err.message)}`);
+        console.error("🔥 [AuthRoute] Passport Callback Error:", err.message);
+        return res.redirect(`${CLIENT_URL}/login?error=server_error`);
       }
       if (!user) {
         console.error("🔥 [AuthRoute] No user returned from passport");
@@ -47,8 +48,11 @@ router.get(
       email: user.email,
       username: user.username,
     };
+    // Deliver the token in the URL *fragment* (#), not the query string. Fragments
+    // are never sent to servers or written to access logs / Referer headers, which
+    // sharply reduces token leakage. AuthCallback reads it from location.hash.
     res.redirect(
-      `${CLIENT_URL}/auth-callback?token=${token}&user=${encodeURIComponent(
+      `${CLIENT_URL}/auth-callback#token=${token}&user=${encodeURIComponent(
         JSON.stringify(userDetails),
       )}`,
     );

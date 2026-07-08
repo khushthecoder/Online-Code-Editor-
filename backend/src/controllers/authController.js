@@ -2,9 +2,22 @@ const prisma = require("../prismaClient");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const register = async (req, res) => {
   const { username, email, password } = req.body;
-  console.log("[register] Request received:", { email, username });
+
+  // Input validation (prevents crashes like bcrypt.hash(undefined) and bad data).
+  if (!username || typeof username !== "string" || username.trim().length < 2) {
+    return res.status(400).json({ message: "Username must be at least 2 characters." });
+  }
+  if (!email || !EMAIL_RE.test(email)) {
+    return res.status(400).json({ message: "A valid email is required." });
+  }
+  if (!password || typeof password !== "string" || password.length < 6) {
+    return res.status(400).json({ message: "Password must be at least 6 characters." });
+  }
+
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
@@ -34,28 +47,23 @@ const register = async (req, res) => {
 
     res.status(201).json({ user: userDetails, token });
   } catch (error) {
-    console.error("[register] Registration Error Details:", {
-      message: error.message,
-      stack: error.stack,
-      code: error.code
-    });
+    console.error("[register] Error:", error.message);
 
     if (error.code === "P2002") {
       return res
-        .status(400)
+        .status(409)
         .json({ message: "Username or email already exists" });
     }
 
-    res.status(500).json({
-      message: "Server error during registration.",
-      debug_error: error.message
-    });
+    res.status(500).json({ message: "Server error during registration." });
   }
 };
 
 const login = async (req, res) => {
   const { email, password } = req.body;
-  console.log("[login] Request received for:", email);
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email and password are required" });
+  }
   try {
     const user = await prisma.user.findUnique({
       where: { email },
@@ -97,7 +105,7 @@ const login = async (req, res) => {
 const getMe = async (req, res) => {
   try {
     if (!req.user || !req.user.userId) {
-      return res.status(400).json({ message: "User ID not found in token" });
+      return res.status(401).json({ message: "Invalid authentication token" });
     }
 
     const user = await prisma.user.findUnique({

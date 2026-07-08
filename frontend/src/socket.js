@@ -1,14 +1,14 @@
 import { io } from "socket.io-client";
+import { SOCKET_URL } from "./config";
 
-// In production, we connect to the same origin (Vercel routes /socket.io/ to backend)
-// In local, we connect to 5001.
-const URL = import.meta.env.VITE_SOCKET_URL ||
-  (import.meta.env.PROD
-    ? window.location.origin
-    : `http://${window.location.hostname}:5001`);
-
-export const socket = io(URL, {
+// The server authenticates the handshake via a JWT (io.use middleware), so the
+// token must be attached before connecting. Call setSocketAuth(token) first.
+export const socket = io(SOCKET_URL, {
   autoConnect: false,
-  transports: ["polling", "websocket"], // Use polling first for Vercel stability
+  transports: ["websocket", "polling"],
   withCredentials: true,
 });
+
+export const setSocketAuth = (token) => {
+  socket.auth = { token };
+};

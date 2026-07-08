@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
-import { GoogleIcon } from "../components/Icons"; 
+import { GoogleIcon } from "../components/Icons";
 import toast from "react-hot-toast";
-import axios from "axios";
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+import api from "../services/api";
+import { API_URL } from "../config";
 
 const AuthPage = () => {
     const location = useLocation();
@@ -50,7 +49,7 @@ const AuthPage = () => {
             ? { email: formData.email, password: formData.password }
             : formData;
         try {
-            const { data } = await axios.post(`${API_URL}${endpoint}`, payload);
+            const { data } = await api.post(endpoint, payload);
             if (isLogin) {
                 login(data.token, data.user);
                 toast.success("Logged in successfully!");
@@ -82,12 +81,14 @@ const AuthPage = () => {
                 <div className="authCard">
                     <div className="authTabs">
                         <button
+                            type="button"
                             className={`authTab ${isLogin ? "active" : ""}`}
                             onClick={() => navigate("/login")}
                         >
                             Sign In
                         </button>
                         <button
+                            type="button"
                             className={`authTab ${!isLogin ? "active" : ""}`}
                             onClick={() => navigate("/signup")}
                         >
@@ -160,6 +161,7 @@ const AuthPage = () => {
                     <div className="formFooter">
                         {isLogin ? "Don't have an account?" : "Already have an account?"}
                         <button
+                            type="button"
                             className="linkBtn"
                             onClick={() => navigate(isLogin ? "/signup" : "/login")}
                         >
